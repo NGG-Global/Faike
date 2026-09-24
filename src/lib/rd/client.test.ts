@@ -84,6 +84,14 @@ describe("RD client requests", () => {
     expect(init?.signal).toBeInstanceOf(AbortSignal);
   });
 
+  it("accepts an upload URL on a local stub's own origin", async () => {
+    const local = "http://localhost:4010";
+    const signedUrl = `${local}/api/files/${REQUEST_ID}?token=abc`;
+    const fetch = fakeFetch(reply(200, { ...PRESIGN_RESPONSE, response: { signedUrl } }));
+    const rd = createRdClient({ apiKey: API_KEY, baseUrl: local, fetch, sleep: async () => undefined });
+    await expect(rd.requestPresignedUpload("f.jpg")).resolves.toMatchObject({ response: { signedUrl } });
+  });
+
   it("submits a social link with the documented call", async () => {
     const fetch = fakeFetch(reply(200, SOCIAL_RESPONSE));
     const { rd } = client(fetch);

@@ -71,16 +71,29 @@ export type ValidationIssue =
 export type Validation = { ok: true; mediaType: MediaType } | { ok: false; issue: ValidationIssue };
 
 export interface FileFacts {
+  name: string;
   mime: string;
   sizeBytes: number;
   durationSec?: number;
 }
 
-/** Order per HANDOFF §9.4: type, then size and duration, then the Plus gate. */
+/** Lower-case extension without the dot, or undefined. */
+export function fileExtension(fileName: string): string | undefined {
+  const dot = fileName.lastIndexOf(".");
+  if (dot === -1 || dot === fileName.length - 1) return undefined;
+  return fileName.slice(dot + 1).trim().toLowerCase();
+}
+
+/**
+ * Order per HANDOFF §9.4: type, then size and duration, then the Plus gate.
+ * The type needs both a known MIME family and one of the extensions Reality
+ * Defender accepts for it, as the server requires before an upload.
+ */
 export function validateFile(file: FileFacts, plan: Plan): Validation {
   const mediaType = mediaTypeForMime(file.mime);
   if (!mediaType) return { ok: false, issue: { kind: "unsupported" } };
   const config = MEDIA[mediaType];
+  if (!config.extensions.includes(fileExtension(file.name) ?? "")) return { ok: false, issue: { kind: "unsupported" } };
   if (file.sizeBytes > config.maxBytes) {
     return { ok: false, issue: { kind: "too_large", mediaType, limitBytes: config.maxBytes, sizeBytes: file.sizeBytes } };
   }

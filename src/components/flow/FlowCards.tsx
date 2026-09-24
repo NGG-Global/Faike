@@ -103,7 +103,8 @@ export function RetrievalFailedCard({ onUpload, onTryLink }: { onUpload: () => v
 
 /**
  * Network or API failure. Offline copy is the handoff's derived "Offline"
- * state; the unreachable-service variant follows the same pattern.
+ * state; the unreachable-service and taking-too-long variants (derived)
+ * follow the same pattern. "Try again" resumes waiting after a timeout.
  */
 export function ConnectionCard({
   failure,
@@ -115,11 +116,12 @@ export function ConnectionCard({
   onRetry: () => void;
 }) {
   const noun = kind === "paste" ? "text" : kind === "link" ? "link" : "file";
+  const title = failure === "offline" ? "You're offline" : failure === "timeout" ? "This is taking longer than usual" : "We couldn't connect";
   return (
     <StateCard
       headingLevel={1}
       label="Connection"
-      title={failure === "offline" ? "You're offline" : "We couldn't connect"}
+      title={title}
       actions={
         <Button onClick={onRetry} className="w-full">
           Try again
@@ -129,6 +131,10 @@ export function ConnectionCard({
       {failure === "offline" ? (
         <p className={bodyText}>
           Faike needs a connection to check your {noun}. We&apos;ll keep it here until you&apos;re back.
+        </p>
+      ) : failure === "timeout" ? (
+        <p className={bodyText}>
+          The check hasn&apos;t finished yet. Try again to keep waiting for the result.
         </p>
       ) : (
         <p className={bodyText}>

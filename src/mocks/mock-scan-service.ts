@@ -294,6 +294,10 @@ export const mockScanService: ScanService = {
     }
   },
 
+  canRetry() {
+    return true;
+  },
+
   async sendFeedback(id, answer) {
     // MOCK: stored locally only. The real client sends { id, answer } and nothing else.
     scanStore.updateJob(id, (job) => ({ ...job, feedback: answer }));

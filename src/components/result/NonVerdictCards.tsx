@@ -39,17 +39,22 @@ export function NotApplicableCard({ result }: { result: ScanResult }) {
   );
 }
 
-export function UnableCard({ job, onRetry }: { job: ScanJob; onRetry: () => void }) {
+/**
+ * `onRetry` is absent when a retry is impossible (a real check whose file
+ * is gone after a reload): only "Check a different file" remains, and the
+ * "still here" line is not shown.
+ */
+export function UnableCard({ job, onRetry }: { job: ScanJob; onRetry?: () => void }) {
   const kind = job.input.kind;
   const noun = kind === "paste" ? "text" : kind === "link" ? "link" : "file";
   // HANDOFF §8: after two failed retries, "Check a different file" leads.
-  const swapped = job.retries >= 2;
+  const swapped = job.retries >= 2 || !onRetry;
   const otherLabel = kind === "file" ? "Check a different file" : "Check something else";
-  const retry = (
+  const retry = onRetry ? (
     <Button key="retry" variant={swapped ? "secondary" : "primary"} onClick={onRetry} className="w-full">
       Try again
     </Button>
-  );
+  ) : null;
   const other = (
     <Button key="other" href="/" variant={swapped ? "primary" : "secondary"} className="w-full">
       {otherLabel}
@@ -65,11 +70,13 @@ export function UnableCard({ job, onRetry }: { job: ScanJob; onRetry: () => void
       <p className={bodyText}>
         Something went wrong on our side while checking your {noun}. It&apos;s usually temporary.
       </p>
-      <p className={`${bodyText} text-ink-soft`}>
-        {kind === "file"
-          ? "Your file is still here, so you can try again without re-uploading."
-          : `Your ${noun} is still here, so you can try again.`}
-      </p>
+      {onRetry ? (
+        <p className={`${bodyText} text-ink-soft`}>
+          {kind === "file"
+            ? "Your file is still here, so you can try again without re-uploading."
+            : `Your ${noun} is still here, so you can try again.`}
+        </p>
+      ) : null}
     </StateCard>
   );
 }

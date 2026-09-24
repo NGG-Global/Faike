@@ -1,6 +1,7 @@
 /*
- * Reality Defender values that RD may change. Read only by the server-side
- * RD module (src/lib/rd); nothing here is secret.
+ * Reality Defender values that RD may change. Nothing here is secret: the
+ * language names and ensemble pattern are read by the server-side RD module
+ * (src/lib/rd), the model-name switch by the "Model results" section.
  */
 
 /**
@@ -23,3 +24,11 @@ export const RD_LANGUAGE_CODES: Readonly<Record<string, string>> = {
  * This is a pattern, not a model name; revisit if RD adds such a field.
  */
 export const RD_ENSEMBLE_MODEL_PATTERN = /ensemble/i;
+
+/**
+ * PLACEHOLDER (HANDOFF §12.12): RD has not confirmed that its model names
+ * may be shown to end users, and says the names change over time. Until it
+ * does, "Model results" labels rows by position ("Model 1") and never shows
+ * the name RD returned.
+ */
+export const RD_MODEL_NAMES_PUBLIC = false;

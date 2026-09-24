@@ -1,5 +1,5 @@
 import "server-only";
-import { isRecord, optBoolean, optHttpsUrl, optNumber, optString } from "@/lib/guards";
+import { isRecord, optBoolean, optNumber, optString } from "@/lib/guards";
 import { isRequestId } from "@/lib/scan/api-input";
 import { RdError } from "./errors";
 import type {
@@ -16,6 +16,9 @@ import type {
  * are missing or malformed throw RdError("bad_response"); optional fields
  * that are missing, null, renamed or of the wrong type are dropped, never
  * guessed.
+ *
+ * URLs must be https, or on the configured API origin (`trustedOrigin`),
+ * which is how a local stub on http://localhost is accepted in development.
  */
 
 const CODE = /^[A-Za-z0-9_-]{1,64}$/;
@@ -40,9 +43,21 @@ function optName(value: unknown): string | undefined {
   return text && text.length <= MAX_NAME_LENGTH ? text : undefined;
 }
 
-export function parsePresignedUploadResponse(json: unknown): RdPresignedUploadResponse {
+/** Returns the original text, not the parser's normalised form, so signatures stay byte-for-byte. */
+function optUrl(value: unknown, trustedOrigin?: string): string | undefined {
+  const text = optString(value);
+  if (!text) return undefined;
+  try {
+    const url = new URL(text);
+    return url.protocol === "https:" || url.origin === trustedOrigin ? text : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function parsePresignedUploadResponse(json: unknown, trustedOrigin?: string): RdPresignedUploadResponse {
   if (!isRecord(json)) throw new RdError("bad_response");
-  const signedUrl = isRecord(json.response) ? optHttpsUrl(json.response.signedUrl) : undefined;
+  const signedUrl = isRecord(json.response) ? optUrl(json.response.signedUrl, trustedOrigin) : undefined;
   if (!isRequestId(json.requestId) || !signedUrl) throw new RdError("bad_response");
   return { response: { signedUrl }, requestId: json.requestId };
 }
@@ -52,18 +67,19 @@ export function parseSocialUploadResponse(json: unknown): RdSocialUploadResponse
   return { requestId: json.requestId };
 }
 
-export function parseMediaDetail(json: unknown): RdMediaDetail {
+export function parseMediaDetail(json: unknown, trustedOrigin?: string): RdMediaDetail {
   if (!isRecord(json)) throw new RdError("bad_response");
   return {
     requestId: optString(json.requestId),
     mediaType: optStatus(json.mediaType),
     overallStatus: optStatus(json.overallStatus),
     uploadedDate: optIsoDate(json.uploadedDate),
+    socialLink: optString(json.socialLink),
     socialLinkDownloaded: optBoolean(json.socialLinkDownloaded),
     socialLinkDownloadFailed: optBoolean(json.socialLinkDownloadFailed),
     resultsSummary: parseSummary(json.resultsSummary),
     models: Array.isArray(json.models) ? json.models.flatMap(parseModel) : [],
-    heatmaps: parseHeatmaps(json.heatmaps),
+    heatmaps: parseHeatmaps(json.heatmaps, trustedOrigin),
   };
 }
 
@@ -97,11 +113,11 @@ function parseModel(value: unknown): RdModelResult[] {
   return [{ name, status: optStatus(value.status), finalScore: optNumber(value.finalScore), code: optCode(value.code) }];
 }
 
-function parseHeatmaps(value: unknown): Record<string, string> | undefined {
+function parseHeatmaps(value: unknown, trustedOrigin?: string): Record<string, string> | undefined {
   if (!isRecord(value)) return undefined;
   const entries = Object.entries(value).flatMap(([model, url]) => {
     const name = optName(model);
-    const href = optHttpsUrl(url);
+    const href = optUrl(url, trustedOrigin);
     return name && href ? [[name, href] as const] : [];
   });
   return entries.length ? Object.fromEntries(entries) : undefined;

@@ -2,7 +2,7 @@ import { MEDIA, MEDIA_TYPES } from "@/config/media";
 import type { SocialPlatform } from "@/config/platforms";
 import { isRecord } from "@/lib/guards";
 import type { ApiErrorCode } from "./api";
-import { detectPlatform, mediaTypeForMime } from "./input";
+import { detectPlatform, fileExtension, mediaTypeForMime } from "./input";
 import type { MediaType } from "./types";
 
 /*
@@ -30,13 +30,6 @@ export function isRequestId(value: unknown): value is string {
 
 function fail<T>(code: ApiErrorCode, message: string): Parsed<T> {
   return { ok: false, code, message };
-}
-
-/** Lower-case extension without the dot, or undefined. */
-export function fileExtension(fileName: string): string | undefined {
-  const dot = fileName.lastIndexOf(".");
-  if (dot === -1 || dot === fileName.length - 1) return undefined;
-  return fileName.slice(dot + 1).trim().toLowerCase();
 }
 
 export function mediaTypeForExtension(extension: string): MediaType | null {

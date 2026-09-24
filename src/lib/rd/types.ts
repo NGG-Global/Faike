@@ -9,6 +9,8 @@ import "server-only";
  * - RD's official TypeScript SDK, @realitydefender/realitydefender 0.1.19,
  *   for the presigned-upload envelope, which the REST pages show only in
  *   part: `signedUrl` is nested under `response`; `requestId` is top level.
+ * - A live image check through Faike's routes (24 Sep 2026) confirmed that
+ *   envelope and the media-detail fields below.
  *
  * Fields RD returns but Faike does not need are not typed and never read,
  * including account identifiers (userId, institutionId), storage keys and
@@ -19,7 +21,11 @@ import "server-only";
 /** POST /api/files/aws-presigned, body { fileName }. */
 export interface RdPresignedUploadResponse {
   response: {
-    /** Pre-signed storage URL; the file body is PUT to it. */
+    /**
+     * Where the file body is PUT. The docs call it an AWS pre-signed URL; in
+     * live responses it is RD's own API (`/api/files/{requestId}?token=…`).
+     * The token authorises the upload: never log the query.
+     */
     signedUrl: string;
   };
   requestId: string;
@@ -39,9 +45,11 @@ export interface RdMediaDetail {
   overallStatus?: string;
   /** ISO 8601. */
   uploadedDate?: string;
-  /** Social submissions only. */
+  /** The submitted link; present only for social submissions. Faike reads its presence, never passes it on. */
+  socialLink?: string;
+  /** Meaningful only for social submissions. */
   socialLinkDownloaded?: boolean;
-  /** Social submissions only. */
+  /** Meaningful only for social submissions. */
   socialLinkDownloadFailed?: boolean;
   /** Ensemble result. Null or absent while a post downloads or models run (SDK). */
   resultsSummary?: RdResultsSummary;

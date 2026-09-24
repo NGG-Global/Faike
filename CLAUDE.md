@@ -59,8 +59,9 @@ Run lint, typecheck, tests and build before every commit. Add unit tests for log
 - **Scores are not probabilities.** Label them as model output scores. Never say "proof", "certain", "guaranteed" or "100%".
 - Confirm every assumption in HANDOFF §12 against RD's current documentation before wiring the adapter. Do not guess endpoints, field names or reason codes. The status of each item is in `progress.md`; the API flow is in `docs/architecture.md` §5.
 
-## Mock data (until Stage 3)
+## Mock data (until every input is live)
 
+- Image files run for real through `src/lib/scan/live-service.ts`; audio, video, text and links still use the mock. `src/lib/scan/client.ts` routes by input and by the job's `engine`. The `/mock` launcher always uses the mock, so review links never spend RD checks.
 - Everything mock lives in `src/mocks/`: fixtures (every verdict × media type), the result builder, samples, the mock scan service, demo checks, mock settings, `?preview=` states and the `/mock` launcher. Product components do not embed mock data.
 - Documented seams into the mock: `src/lib/scan/client.ts` (service), `src/lib/plan.ts` (plan), the intake's example samples and `?preview=` hook. Remove the mock layer when RD is integrated; keep the example files (§6.6).
 - Fixtures use Faike's `ScanResult` shape, never a guessed RD schema. Mock model names are prefixed `mock-`; scores are illustrative.

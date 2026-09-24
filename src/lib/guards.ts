@@ -20,17 +20,3 @@ export function optNumber(value: unknown): number | undefined {
 export function optBoolean(value: unknown): boolean | undefined {
   return typeof value === "boolean" ? value : undefined;
 }
-
-/**
- * An absolute https URL, or undefined. Returns the original text, not the
- * parser's normalised form, so pre-signed signatures stay byte-for-byte.
- */
-export function optHttpsUrl(value: unknown): string | undefined {
-  const text = optString(value);
-  if (!text) return undefined;
-  try {
-    return new URL(text).protocol === "https:" ? text : undefined;
-  } catch {
-    return undefined;
-  }
-}

@@ -1,6 +1,6 @@
 # Faike architecture
 
-Status: Stage 3a complete. The interface runs on mock data (Stage 2). The server-side Reality Defender integration (Route Handlers, RD client, response validation and mapping) is built and unit-tested but **not yet connected to the interface**, and it has not yet been run against RD's live API with a real key. Sections marked **Planned** describe the intended design.
+Status: Stage 3b, part 1. Image files are checked for real: the browser uploads straight to Reality Defender and polls Faike's own status route; audio, video, text and links still run on the mock. In production the browser upload is blocked until RD adds Faike's origins to its CORS allow-list (§5, open points). Sections marked **Planned** describe the intended design.
 
 ## 1. Overview
 
@@ -101,7 +101,7 @@ Intake (browser) ── validate (type, size, duration, Plus) ──▶ scanServ
 
 Nothing is uploaded. Previews, waveform peaks, video frames and file metadata are computed in the browser from the person's own file.
 
-### Server integration (Stage 3a: built, UI not connected)
+### Server integration (Stage 3a)
 
 Sources, checked 24 Sep 2026: RD's documentation (API Quickstart, AWS Presigned URL, Social Media URL Upload, Media Detail, Create User Feedback) and RD's official TypeScript SDK (`@realitydefender/realitydefender` 0.1.19) where the REST pages are incomplete. The SDK is read as a reference, not installed (decision 30).
 
@@ -115,7 +115,8 @@ POST /api/scans/presign  ─────────▶ validate name, type, siz
                                       └─ POST /api/files/aws-presigned ───────▶  { response: { signedUrl },
                                          { fileName: "<uuid>.<ext>" }               requestId, … }
                          ◀───────── { requestId, uploadUrl }
-PUT uploadUrl  (file body only) ─────────────────────────────────────────────▶  RD's storage (S3)
+PUT uploadUrl  (file body only) ─────────────────────────────────────────────▶  RD upload endpoint
+                                                                                  (/api/files/{id}?token=…)
 GET /api/scans/{requestId}  ──────▶ GET /api/media/users/{requestId} ─────────▶  media detail
    (poll)                ◀───────── ScanStatusResponse  ◀── validate, map ──
 ```
@@ -165,11 +166,39 @@ Server logs record the operation, kind, HTTP status and RD's machine code only, 
 
 **Tests.** Vitest with RD replaced by fetch stubs; `vitest.setup.ts` makes any unstubbed `fetch` throw, so no test can reach RD's paid API.
 
-**Not built yet (next step):** a `ScanService` implementation that calls these routes (presign → PUT → poll, social → poll) and composes `ScanResult` from the input summary plus `ScanAnalysis`; swap in `src/lib/scan/client.ts`; remove the mock layer.
+### Browser flow (Stage 3b: image files)
+
+```
+Intake ─ validate (MIME family + RD extension, size) ─▶ scanService.start   (src/lib/scan/client.ts)
+                                                          │ image file?          otherwise → mock service
+                                                          ▼
+                                   live-service.ts: job { engine: "rd" } in the scan store
+                                                          │
+   presignUpload()  POST /api/scans/presign ──────────────┤  api-client.ts (responses validated)
+   putFile()        XHR PUT uploadUrl (progress) ─────────┤  uploading stage, real bytes
+   pollScan()       GET /api/scans/{requestId}, sequential┤  analysing stage, no percentage
+                                                          ▼
+                     resultFromAnalysis(input facts + ScanAnalysis) → done → existing result screens
+```
+
+- **Polling** (`src/lib/scan/poll.ts`, values in `src/config/polling.ts`):
+  - one request at a time, each with its own 35 s timeout
+  - 2 s between requests, 4 s after 30 s, doubled after an error
+  - fails after 3 consecutive errors, and at a 3-minute deadline
+  - stops at the first final state; a model still `ANALYZING` does not delay it, because completion follows the ensemble
+- **Abort:** each check has one AbortController. Starting a step, cancelling, or starting another check aborts the previous work, and a newer check removes an older one still in progress.
+- **Retry:**
+  - upload failure: presign and upload again
+  - status failure or deadline: resume polling the same request
+  - "Unable to analyze": send the file kept in memory again as a new check
+  - After a reload the file is gone, and `canRetry` is false.
+- **Result:** composed only from the person's file facts and RD's analysis. One heat map is shown, from the flagged model with the highest score. Model names are hidden until RD permits showing them (`RD_MODEL_NAMES_PUBLIC`).
+
+**Not built yet:** audio, video, text and social links on the live service; a server-side scan record; removal of the mock layer.
 
 **Open points:**
 
-- **Browser upload (CORS).** A browser `PUT` to RD's storage needs RD's bucket to allow Faike's origin. RD's documentation does not cover browser uploads. Verify with a real key before connecting the interface; if it is blocked, RD must allow the origin.
+- **Browser upload (CORS): blocking.** Checked live on 24 Sep 2026: RD's upload endpoint (`api.prd.realitydefender.xyz/api/files/{id}`) answers preflights with `Access-Control-Allow-Origin` only for `https://app.realitydefender.ai`. Faike's origins get none, so browsers refuse the upload. RD must add Faike's production, preview and local-development origins. Relaying files through a Route Handler would contradict decision 32.
 - **Upload URL lifetime.** RD documents a 15-minute expiry for media-detail URLs, not for the upload URL.
 - **Request id format.** Not documented. Faike accepts `[A-Za-z0-9_-]`, up to 128 characters, and fails closed otherwise.
 - **Detail data.** Segments, regions, scene timelines and text spans live in RD's `aggregation.json` (`modelMetadataUrl`), whose schema is not documented, so they are not mapped. Text explainability is a pre-signed HTML page; how to present it safely is undecided.
@@ -222,3 +251,11 @@ Server logs record the operation, kind, HTTP status and RD's machine code only, 
 | 37 | Retries only where repeating cannot duplicate work; redirects not followed; fixed error text; no-store responses; JSON content type required. | CLAUDE.md's defensive rules. Requiring `application/json` also blocks cross-site form posts. |
 | 38 | No access token or rate limit in this stage. | Not in the brief's contract. Recorded as a launch blocker: sign request ids (HMAC token issued with the id) and add rate limiting or bot protection on the POST routes. |
 | 39 | Social platforms updated to RD's list (Threads added); limits and extensions confirmed against RD. | HANDOFF §12.3 and §12.10 answered by RD's documentation. The mock maps Threads links to a photo post. |
+| 40 | Image files use the live service; other inputs stay on the mock, routed in `client.ts` by input and by the job's `engine`. | The brief asks for one real vertical slice; recording the owner on the job keeps cancel and retry correct after a reload. |
+| 41 | Upload with XMLHttpRequest; status calls with fetch. | Only XHR reports upload progress, which HANDOFF §8 shows as real bytes. |
+| 42 | Sequential polling with a deadline and consecutive-error limit; values in config. | The brief: no overlapping requests, stop at a final result, no endless polling. RD offers no progress, so analysis shows the indeterminate state (HANDOFF §6.8). |
+| 43 | The social-link fields count only when `socialLink` is present. | Live data: a file upload carried them and read "retrieving". RD documents them for social submissions only. |
+| 44 | URLs must be https or on the configured API origin. | Live upload URLs are RD's own API with a token; the origin rule lets a local stub on `http://localhost` work without weakening production. |
+| 45 | Model names hidden in "Model results" until RD permits (`RD_MODEL_NAMES_PUBLIC`). | CLAUDE.md: show names only with RD's permission (HANDOFF §12.12), which is unconfirmed. |
+| 46 | Strength legend shown only with region outlines. | Live data: RD's heat map is a white intensity mask, not Faike's strength colours. |
+| 47 | Browser validation also requires RD's extensions. | The server refuses other extensions; checking first avoids starting an upload that cannot succeed. |

@@ -82,6 +82,7 @@ type Outcome = { ok: true; json: unknown } | { ok: false; error: RdError; retry:
 
 export function createRdClient(options: RdClientOptions): RdClient {
   const fetchImpl = options.fetch ?? fetch;
+  const trustedOrigin = new URL(options.baseUrl).origin;
   const sleep = options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const timeoutMs = options.timeoutMs ?? ATTEMPT_TIMEOUT_MS;
 
@@ -145,7 +146,7 @@ export function createRdClient(options: RdClientOptions): RdClient {
 
   return {
     async requestPresignedUpload(fileName) {
-      return parsePresignedUploadResponse(await request("POST", PATHS.presignedUpload, { fileName }));
+      return parsePresignedUploadResponse(await request("POST", PATHS.presignedUpload, { fileName }), trustedOrigin);
     },
 
     async submitSocialLink(socialLink) {
@@ -155,7 +156,7 @@ export function createRdClient(options: RdClientOptions): RdClient {
     async getMediaDetail(requestId) {
       if (!isRequestId(requestId)) throw new RdError("not_found");
       const json = await request("GET", `${PATHS.mediaDetail}/${encodeURIComponent(requestId)}`);
-      const detail = parseMediaDetail(json);
+      const detail = parseMediaDetail(json, trustedOrigin);
       // A result for a different request is never passed on.
       if (detail.requestId !== undefined && detail.requestId !== requestId) throw new RdError("bad_response");
       return detail;

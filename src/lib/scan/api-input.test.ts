@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { fileExtension, isRequestId, parsePresignRequest, parseSocialRequest } from "./api-input";
+import { isRequestId, parsePresignRequest, parseSocialRequest } from "./api-input";
+import { fileExtension } from "./input";
 
 describe("parsePresignRequest", () => {
   const valid = { fileName: "Beach Sunset.JPG", mimeType: "image/jpeg", sizeBytes: 222_708 };

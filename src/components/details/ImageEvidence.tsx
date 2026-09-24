@@ -53,7 +53,9 @@ export function ImageEvidence({
           {options ? (
             <SegmentedControl label="How to show the photo" options={options} value={view} onChange={onViewChange} className="w-full sm:w-auto" />
           ) : null}
-          <SignalLegend />
+          {/* The legend explains the region outlines. RD's heat map is a white
+              intensity mask with its own caption, so it gets no legend. */}
+          {regions.length ? <SignalLegend /> : null}
         </div>
       ) : null}
 

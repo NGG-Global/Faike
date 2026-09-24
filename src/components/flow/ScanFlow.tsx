@@ -83,7 +83,7 @@ export function ScanFlow({ scanId }: { scanId: string }) {
             {result.verdict === "not_applicable" ? (
               <NotApplicableCard result={result} />
             ) : (
-              <UnableCard job={job} onRetry={() => scanService.retry(scanId)} />
+              <UnableCard job={job} onRetry={scanService.canRetry(scanId) ? () => scanService.retry(scanId) : undefined} />
             )}
           </CardPage>
         );

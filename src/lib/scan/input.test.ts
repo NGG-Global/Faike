@@ -45,32 +45,39 @@ describe("classifyPaste", () => {
 
 describe("validateFile (HANDOFF §9.3)", () => {
   it("rejects unsupported types first", () => {
-    expect(validateFile({ mime: "application/zip", sizeBytes: 10 }, "plus")).toEqual({
+    expect(validateFile({ name: "a.zip", mime: "application/zip", sizeBytes: 10 }, "plus")).toEqual({
       ok: false,
       issue: { kind: "unsupported" },
     });
   });
 
+  it("rejects a known MIME family with an extension Reality Defender does not accept", () => {
+    for (const [name, mime] of [["photo.heic", "image/heic"], ["photo.avif", "image/avif"], ["clip.webm", "video/webm"], ["noext", "image/jpeg"]]) {
+      expect(validateFile({ name, mime, sizeBytes: 10 }, "plus"), name).toEqual({ ok: false, issue: { kind: "unsupported" } });
+    }
+    expect(validateFile({ name: "Photo.JPEG", mime: "image/jpeg", sizeBytes: 10 }, "plus")).toEqual({ ok: true, mediaType: "image" });
+  });
+
   it("enforces size limits per type", () => {
-    const result = validateFile({ mime: "audio/mpeg", sizeBytes: 34_000_000 }, "plus");
+    const result = validateFile({ name: "a.mp3", mime: "audio/mpeg", sizeBytes: 34_000_000 }, "plus");
     expect(result).toEqual({
       ok: false,
       issue: { kind: "too_large", mediaType: "audio", limitBytes: 20_000_000, sizeBytes: 34_000_000 },
     });
-    expect(validateFile({ mime: "image/png", sizeBytes: 49_000_000 }, "free")).toEqual({ ok: true, mediaType: "image" });
+    expect(validateFile({ name: "a.png", mime: "image/png", sizeBytes: 49_000_000 }, "free")).toEqual({ ok: true, mediaType: "image" });
   });
 
   it("enforces the 30-minute video limit when the duration is known", () => {
-    const result = validateFile({ mime: "video/mp4", sizeBytes: 1_000, durationSec: 31 * 60 }, "plus");
+    const result = validateFile({ name: "a.mp4", mime: "video/mp4", sizeBytes: 1_000, durationSec: 31 * 60 }, "plus");
     expect(result.ok === false && result.issue.kind).toBe("too_long");
   });
 
   it("gates Plus types for free users before upload", () => {
-    expect(validateFile({ mime: "video/mp4", sizeBytes: 1_000 }, "free")).toEqual({
+    expect(validateFile({ name: "a.mp4", mime: "video/mp4", sizeBytes: 1_000 }, "free")).toEqual({
       ok: false,
       issue: { kind: "gated", subject: "video" },
     });
-    expect(validateFile({ mime: "video/mp4", sizeBytes: 1_000 }, "plus").ok).toBe(true);
+    expect(validateFile({ name: "a.mp4", mime: "video/mp4", sizeBytes: 1_000 }, "plus").ok).toBe(true);
   });
 });
 

@@ -34,7 +34,8 @@ export interface MediaRef {
 
 export type FlowStep = "uploading" | "retrieving" | "analysing";
 
-export type FailureKind = "offline" | "network" | "retrieval";
+/** "timeout": the service stopped answering before a final result (derived state). */
+export type FailureKind = "offline" | "network" | "retrieval" | "timeout";
 
 export type ScanStage =
   | { name: "uploading"; loadedBytes: number; totalBytes: number }
@@ -61,6 +62,8 @@ export interface ScanJob {
   retries: number;
   /** True when the stage change was seen live in this tab, not restored. */
   live: boolean;
+  /** "rd" for a real check through Reality Defender; absent for the mock. */
+  engine?: "rd";
   feedback?: FeedbackAnswer;
 }
 

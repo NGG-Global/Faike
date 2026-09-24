@@ -47,6 +47,23 @@ describe("parsePresignedUploadResponse", () => {
   });
 });
 
+describe("URLs on the configured API origin", () => {
+  const local = "http://localhost:4010";
+  const upload = `${local}/api/files/${REQUEST_ID}?token=abc`;
+
+  it("accepts plain http only on the trusted origin, as a local stub needs", () => {
+    const json = { ...PRESIGN_RESPONSE, response: { signedUrl: upload } };
+    expect(parsePresignedUploadResponse(json, local).response.signedUrl).toBe(upload);
+    expect(badResponse(() => parsePresignedUploadResponse(json))).toBe(true);
+    expect(badResponse(() => parsePresignedUploadResponse(json, "http://localhost:9999"))).toBe(true);
+  });
+
+  it("applies the same rule to heat maps", () => {
+    const heatmaps = { "mock-img-a": `${local}/h.png`, "mock-img-b": "http://elsewhere.example/h.png" };
+    expect(parseMediaDetail({ heatmaps }, local).heatmaps).toEqual({ "mock-img-a": `${local}/h.png` });
+  });
+});
+
 describe("parseSocialUploadResponse", () => {
   it("reads the top-level requestId", () => {
     expect(parseSocialUploadResponse(SOCIAL_RESPONSE)).toEqual({ requestId: REQUEST_ID });
@@ -92,6 +109,7 @@ describe("parseMediaDetail", () => {
       mediaType: undefined,
       overallStatus: undefined,
       uploadedDate: undefined,
+      socialLink: undefined,
       socialLinkDownloaded: undefined,
       socialLinkDownloadFailed: undefined,
       resultsSummary: { status: undefined, metadata: { finalScore: undefined, languages: undefined, reasons: [] }, error: undefined },

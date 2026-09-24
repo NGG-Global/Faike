@@ -97,3 +97,37 @@ export function socialDownloadingDetail(overrides: Record<string, unknown> = {})
     ...overrides,
   };
 }
+
+/**
+ * Shaped after the live image check of 24 Sep 2026 (names replaced): the
+ * ensemble has finished while several models are still ANALYZING, and the
+ * social-link fields are present with neutral values on a file upload.
+ */
+export function liveImageDetail(overrides: Record<string, unknown> = {}) {
+  return {
+    requestId: REQUEST_ID,
+    uploadedDate: "2026-09-24T23:02:50.908Z",
+    mediaType: "IMAGE",
+    socialLink: null,
+    socialLinkDownloaded: false,
+    socialLinkDownloadFailed: false,
+    userId: "mock-user-id-123",
+    institutionId: "mock-institution-id-456",
+    overallStatus: "FAKE",
+    resultsSummary: { status: "FAKE", metadata: { finalScore: 92 } },
+    models: [
+      { name: "mock-context-img", status: "AUTHENTIC", finalScore: 45, predictionNumber: 0.45, code: null, data: {} },
+      { name: "mock-img-ensemble", status: "FAKE", finalScore: 92, code: null, data: null },
+      { name: "mock-a-img", status: "ANALYZING", finalScore: null, predictionNumber: null, code: null, data: null },
+      { name: "mock-full-a-img", status: "FAKE", finalScore: 99, predictionNumber: 0.99, code: null, data: {} },
+      { name: "mock-full-b-img", status: "FAKE", finalScore: 80, predictionNumber: 0.8, code: null, data: {} },
+      { name: "mock-b-img", status: "ANALYZING", finalScore: null, predictionNumber: null, code: null, data: null },
+    ],
+    heatmaps: {
+      "mock-full-a-img": "https://mock-bucket.s3.us-east-1.amazonaws.com/heatmaps/a.png?X-Amz-Expires=900",
+      "mock-full-b-img": "https://mock-bucket.s3.us-east-1.amazonaws.com/heatmaps/b.png?X-Amz-Expires=900",
+      "mock-img-ensemble": "https://mock-bucket.s3.us-east-1.amazonaws.com/heatmaps/e.png?X-Amz-Expires=900",
+    },
+    ...overrides,
+  };
+}

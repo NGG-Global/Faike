@@ -1,14 +1,16 @@
 import { isRdVerdict } from "@/lib/rd/verdict";
-import { scanService } from "@/lib/scan/client";
 import { classifyPaste } from "@/lib/scan/input";
 import type { FlowStep } from "@/lib/scan/job";
 import { scanStore } from "@/lib/scan/store";
+import { mockScanService } from "./mock-scan-service";
 import { loadSampleFile, SAMPLE_LINKS, SAMPLE_TEXT, SAMPLES, sampleMedia, sampleSummary, type SampleId } from "./samples";
 import { setMockSettings, setNextScenario, type MockOutcome } from "./settings";
 
 /*
  * MOCK launcher behind /mock/run: turns a review link into a live state.
- * Returns where to go next. Unknown parameters are ignored.
+ * Returns where to go next. Unknown parameters are ignored. Checks started
+ * here always use the mock service, including photos, so review links never
+ * spend Reality Defender checks.
  *
  *   ?plan=free|plus  ?progress=determinate|indeterminate   → settings, back to /mock
  *   ?select=photo|voice|video                              → home with the file selected
@@ -53,7 +55,7 @@ export async function runMock(params: URLSearchParams): Promise<string> {
   const sample = sampleId(params.get("sample"));
   if (sample) {
     const file = await loadSampleFile(SAMPLES[sample]);
-    const id = scanService.start({ kind: "file", file, summary: sampleSummary(SAMPLES[sample]), media: sampleMedia(SAMPLES[sample]) });
+    const id = mockScanService.start({ kind: "file", file, summary: sampleSummary(SAMPLES[sample]), media: sampleMedia(SAMPLES[sample]) });
     return `/check/${id}`;
   }
 
@@ -61,13 +63,13 @@ export async function runMock(params: URLSearchParams): Promise<string> {
   if (link && link in SAMPLE_LINKS) {
     const input = classifyPaste(SAMPLE_LINKS[link as keyof typeof SAMPLE_LINKS]);
     if (input.kind === "link") {
-      const id = scanService.start({ kind: "link", url: input.url, platformName: input.platform?.name, handle: input.handle });
+      const id = mockScanService.start({ kind: "link", url: input.url, platformName: input.platform?.name, handle: input.handle });
       return `/check/${id}`;
     }
   }
 
   if (params.get("text")) {
-    const id = scanService.start({ kind: "paste", text: SAMPLE_TEXT });
+    const id = mockScanService.start({ kind: "paste", text: SAMPLE_TEXT });
     return `/check/${id}`;
   }
 

@@ -11,7 +11,8 @@ import { verdictFromRd } from "./verdict";
  * Rules (CLAUDE.md):
  * - The verdict comes from the ensemble result (resultsSummary.status, then
  *   overallStatus, as RD's SDK resolves it). Per-model entries are detail
- *   and never change it.
+ *   and never change it; a model still ANALYZING once the ensemble has
+ *   finished simply has no verdict.
  * - Unknown statuses become "unable", never a verdict about the content.
  * - A field is filled only when RD returned usable data for it.
  * - Nothing identifying RD's account, storage or the person is passed on.
@@ -28,13 +29,17 @@ const MEDIA_TYPES = new Map<string, MediaType>([
 ]);
 
 export function toScanStatus(requestId: string, detail: RdMediaDetail): ScanStatusResponse {
-  if (detail.socialLinkDownloadFailed === true) return { requestId, state: "failed", reason: "retrieval" };
+  // RD documents the socialLink* fields for social submissions only; a
+  // file upload can carry them too (a live image check read "retrieving"),
+  // so they count only when a link was submitted.
+  const social = detail.socialLink !== undefined;
+  if (social && detail.socialLinkDownloadFailed === true) return { requestId, state: "failed", reason: "retrieval" };
 
   const mediaType = detail.mediaType ? MEDIA_TYPES.get(detail.mediaType) : undefined;
   const status = detail.resultsSummary?.status ?? detail.overallStatus;
 
   if (status === undefined || IN_PROGRESS.has(status)) {
-    const retrieving = status === "DOWNLOADING" || detail.socialLinkDownloaded === false;
+    const retrieving = social && (status === "DOWNLOADING" || detail.socialLinkDownloaded === false);
     return {
       requestId,
       state: "processing",

@@ -1,4 +1,5 @@
 import { MEDIA } from "@/config/media";
+import { RD_MODEL_NAMES_PUBLIC } from "@/config/rd";
 import { formatDuration, formatScore } from "@/lib/format";
 import { VERDICT_LABEL } from "@/lib/scan/copy";
 import type { ScanResult } from "@/lib/scan/types";
@@ -7,15 +8,21 @@ import type { ScanResult } from "@/lib/scan/types";
  * Collapsed sections of the accordion (HANDOFF §6.21): model results and
  * technical details. The only place technical vocabulary appears. Scores
  * are labelled as model output scores, not probabilities. Model names are
- * RD data (display subject to RD's permission, §12.12).
+ * RD data, shown only once RD permits it (§12.12, RD_MODEL_NAMES_PUBLIC).
  */
 
 const SCORE_NOTE = "Scores are model output scores from 0 to 1. They are not probabilities.";
+
+function modelLabel(model: ScanResult["models"][number], index: number): { label: string; name?: string } {
+  if (!RD_MODEL_NAMES_PUBLIC) return { label: `Model ${index + 1}` };
+  return model.friendlyName ? { label: model.friendlyName, name: model.name } : { label: model.name };
+}
 
 export function ModelResults({ result }: { result: ScanResult }) {
   if (!result.models.length) {
     return <p className="text-body leading-[1.6] text-ink-soft">No individual model results were returned for this check.</p>;
   }
+  const rows = result.models.map((model, index) => ({ model, ...modelLabel(model, index) }));
   return (
     <div>
       <p className="mb-4 text-small text-muted">{SCORE_NOTE}</p>
@@ -30,11 +37,11 @@ export function ModelResults({ result }: { result: ScanResult }) {
           </tr>
         </thead>
         <tbody>
-          {result.models.map((model) => (
+          {rows.map(({ model, label, name }) => (
             <tr key={model.name} className="border-b border-line last:border-0">
               <th scope="row" className="py-3 pr-4 align-top font-semibold">
-                {model.friendlyName ?? model.name}
-                {model.friendlyName ? <span className="block text-caption font-normal text-muted">{model.name}</span> : null}
+                {label}
+                {name ? <span className="block text-caption font-normal text-muted">{name}</span> : null}
               </th>
               <td className="py-3 pr-4 align-top text-ink-soft">{model.checks ?? "—"}</td>
               <td className="py-3 pr-4 align-top">{model.verdict ? VERDICT_LABEL[model.verdict] : "—"}</td>
@@ -45,10 +52,10 @@ export function ModelResults({ result }: { result: ScanResult }) {
       </table>
 
       <ul className="flex flex-col gap-2.5 sm:hidden">
-        {result.models.map((model) => (
+        {rows.map(({ model, label, name }) => (
           <li key={model.name} className="rounded-row bg-surface-sunk p-4">
-            <p className="text-ui font-semibold">{model.friendlyName ?? model.name}</p>
-            {model.friendlyName ? <p className="text-caption text-muted">{model.name}</p> : null}
+            <p className="text-ui font-semibold">{label}</p>
+            {name ? <p className="text-caption text-muted">{name}</p> : null}
             {model.checks ? <p className="mt-1.5 text-small text-ink-soft">{model.checks}</p> : null}
             <dl className="mt-2 flex gap-6 text-small">
               <div>

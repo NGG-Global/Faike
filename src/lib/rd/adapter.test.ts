@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ScanStatusResponse } from "@/lib/scan/api";
 import { toScanStatus } from "./adapter";
 import { parseMediaDetail } from "./parse";
-import { audioNotApplicableDetail, HEATMAP_URL, imageDetail, REQUEST_ID, socialDownloadingDetail } from "./rd-responses.fixture";
+import { audioNotApplicableDetail, HEATMAP_URL, imageDetail, liveImageDetail, REQUEST_ID, socialDownloadingDetail } from "./rd-responses.fixture";
 
 function statusOf(json: unknown): ScanStatusResponse {
   return toScanStatus(REQUEST_ID, parseMediaDetail(json));
@@ -31,6 +31,17 @@ describe("toScanStatus: progress", () => {
       state: "processing",
       stage: "retrieving",
     });
+  });
+
+  it("never reports retrieving for a file upload, whatever the social-link fields say", () => {
+    expect(statusOf(liveImageDetail({ overallStatus: "ANALYZING", resultsSummary: null }))).toEqual({
+      requestId: REQUEST_ID,
+      state: "processing",
+      stage: "analysing",
+      mediaType: "image",
+    });
+    expect(statusOf(liveImageDetail({ overallStatus: "DOWNLOADING", resultsSummary: null }))).toMatchObject({ stage: "analysing" });
+    expect(statusOf(liveImageDetail({ socialLinkDownloadFailed: true }))).toMatchObject({ state: "complete" });
   });
 
   it("keeps waiting when no status is present yet", () => {
@@ -69,6 +80,22 @@ describe("toScanStatus: verdict", () => {
 
   it("maps an unknown status to unable, never to a verdict", () => {
     expect(analysisOf(imageDetail({ overallStatus: "PROBABLY_FINE", resultsSummary: { status: "PROBABLY_FINE" } })).verdict).toBe("unable");
+  });
+});
+
+describe("toScanStatus: live-shaped image result", () => {
+  it("is complete once the ensemble has finished, even with models still analyzing", () => {
+    const analysis = analysisOf(liveImageDetail());
+    expect(analysis).toMatchObject({ mediaType: "image", verdict: "artificial", ensembleScore: 0.92 });
+    expect(analysis.models).toEqual([
+      { name: "mock-context-img", verdict: "authentic", score: 0.45 },
+      { name: "mock-img-ensemble", verdict: "artificial", score: 0.92 },
+      { name: "mock-a-img" },
+      { name: "mock-full-a-img", verdict: "artificial", score: 0.99 },
+      { name: "mock-full-b-img", verdict: "artificial", score: 0.8 },
+      { name: "mock-b-img" },
+    ]);
+    expect(analysis.heatmaps?.map((heatmap) => heatmap.model)).toEqual(["mock-full-a-img", "mock-full-b-img"]);
   });
 });
 

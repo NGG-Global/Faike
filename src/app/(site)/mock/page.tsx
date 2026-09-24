@@ -77,9 +77,9 @@ export default function MockReviewPage() {
       <p className="text-micro font-bold tracking-[0.06em] text-muted uppercase">Mock data only</p>
       <h1 className="mt-2 font-display text-h1-detail-mobile sm:text-h1-detail">Mock review</h1>
       <p className="mt-3 max-w-[70ch] text-body leading-[1.6] text-ink-soft">
-        Everything here runs on bundled samples and fixtures; Reality Defender is not connected and nothing is uploaded.
-        Checks you start yourself on the home page also use the mock: photos come back authentic, voice notes and text
-        suspicious, and videos likely AI, unless an outcome is chosen below.
+        Every link on this page runs on bundled samples and fixtures, and nothing is uploaded. Checks you start yourself
+        on the home page differ: photos (including the example photo) are checked for real by Reality Defender, while
+        voice notes and text come back suspicious and videos likely AI from the mock, unless an outcome is chosen below.
       </p>
 
       <section aria-labelledby="states" className="mt-10">

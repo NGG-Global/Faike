@@ -1,10 +1,12 @@
 import type { FeedbackAnswer, InputSummary, MediaRef } from "./job";
 
 /*
- * The contract between the interface and whatever runs checks. Today the
- * mock (src/mocks/mock-scan-service.ts) implements it in the browser. In
- * Stage 5 a client for Faike's Route Handlers implements the same contract;
- * screens do not change. Progress is published to the scan store.
+ * The contract between the interface and whatever runs checks. Image files
+ * go to Reality Defender through Faike's Route Handlers
+ * (src/lib/scan/live-service.ts); every other input still runs on the mock
+ * (src/mocks/mock-scan-service.ts). src/lib/scan/client.ts routes between
+ * them; screens do not know which one runs. Progress is published to the
+ * scan store.
  */
 
 export type StartInput =
@@ -19,8 +21,10 @@ export interface ScanService {
   load(id: string): Promise<boolean>;
   /** Stops a check and restores its input on the home page (HANDOFF §7.3). */
   cancel(id: string): void;
-  /** Retries a failed step, or re-runs analysis after "unable", without re-uploading (HANDOFF §8). */
+  /** Retries a failed step, or re-runs analysis after "unable", without the person choosing the file again (HANDOFF §8). */
   retry(id: string): void;
+  /** False when a retry is impossible, e.g. the file of a real check is gone after a reload. */
+  canRetry(id: string): boolean;
   /** Sends the feedback answer with the check id only (HANDOFF §9.5). */
   sendFeedback(id: string, answer: FeedbackAnswer): Promise<void>;
 }

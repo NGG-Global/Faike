@@ -117,7 +117,7 @@ export function Intake({ className }: { className?: string }) {
       sizeBytes: file.size,
       ...meta,
     };
-    const result = validateFile({ mime: file.type, sizeBytes: file.size, durationSec: meta.durationSec }, plan);
+    const result = validateFile({ name: file.name, mime: file.type, sizeBytes: file.size, durationSec: meta.durationSec }, plan);
     if (!result.ok) {
       setPhase({ name: "issue", issue: result.issue, summary });
       return;

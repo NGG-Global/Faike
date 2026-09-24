@@ -1,6 +1,6 @@
 # Faike — progress
 
-Last updated: 24 Sep 2026 (Stage 3a)
+Last updated: 24 Sep 2026 (Stage 3b, image slice)
 
 ## Stage 1 — Foundation ✅
 
@@ -78,20 +78,62 @@ Built against RD's current documentation (checked 24 Sep 2026: API Quickstart, A
 | 11 | Progress, cancellation, polling | **Partly.** No percentages or cancellation documented; poll (SDK default every 5 s) or webhook (setup not documented). In-progress statuses: `ANALYZING`, `DOWNLOADING`. |
 | 12 | Showing model names | **Open.** RD says names are not stable, and its SDK marks per-model results as deprecated. Ask RD whether end users may see them. |
 
+## Stage 3b, part 1 — Real image checks ✅ (blocked in production by RD's CORS allow-list)
+
+Image files now run for real: **presign → the browser PUTs the file straight to RD → poll Faike's own `GET /api/scans/{requestId}` → RD's result on the existing result and details screens.** Audio, video, text and links stay on the mock.
+
+**Blocker.** RD's upload endpoint only allows its own web app's origin. Browser preflights from `https://faike.vercel.app`, `http://localhost:3000` or any other origin get no `Access-Control-Allow-Origin` header, while `https://app.realitydefender.ai` does (checked 24 Sep 2026). Until RD adds Faike's origins, a real browser upload fails and the person sees "We couldn't connect" with Try again. Nothing in Faike can fix this within the agreed architecture. Options:
+1. **Recommended:** ask RD to allow Faike's origins: production domain(s), Vercel preview domains, and `http://localhost:3000` for development.
+2. Relay small files through a Route Handler to RD. Contradicts the "no media through serverless functions" decision, and Vercel's request-body limit (about 4.5 MB; verify) caps it.
+3. Upload to storage Faike controls, then server-to-server to RD. Adds a dependency and temporary re-hosting of the person's file (conflicts with the privacy rule).
+
+**Built.**
+- [x] `src/lib/scan/live-service.ts`: the real `ScanService` for image files. The file is kept in memory for retries in this tab only.
+- [x] `src/lib/scan/client.ts` routes image files to the live service and everything else to the mock; each job records its service (`engine: "rd"`), so cancel and retry reach the right one.
+- [x] `src/lib/scan/api-client.ts`: calls Faike's routes (responses validated) and uploads with XMLHttpRequest for real upload progress. The browser sends no key.
+- [x] `src/lib/scan/poll.ts`: polling. One request at a time; stops at the first final state; 2 s waits, 4 s after 30 s, doubled after an error; fails after 3 errors in a row; 3-minute deadline; aborts immediately on cancel or a newer check. Values in `src/config/polling.ts`.
+- [x] A model still `ANALYZING` never holds up or fails a check: the verdict comes from the ensemble, and such a model is shown without a result.
+- [x] `src/lib/scan/result.ts` builds `ScanResult` from the person's file facts plus RD's analysis only. No regions, segments or reasons are invented; one heat map is shown, from the flagged model with the highest score.
+- [x] Retry: after an upload failure it starts over; after a status failure or the deadline it keeps waiting on the same request (no new upload); after "Unable to analyze" it sends the kept file again as a new check. A real check whose file is gone (after a reload) offers only "Check a different file".
+- [x] A new check stops any real check still uploading or analysing and removes it.
+- [x] The browser now also requires one of RD's extensions, so HEIC, AVIF or WebM get the "can't check this" card before any upload.
+- [x] `/mock` review links always use the mock, including photos, so reviewing never spends RD checks.
+
+**Live findings** (two checks of Faike's own generated sample photo through the production routes, 24 Sep 2026):
+- The presign envelope and media-detail fields match our types; no type changes were needed beyond the points below.
+- The upload URL is RD's own API (`api.prd.realitydefender.xyz/api/files/{requestId}?token=…`), not an S3 link. A PUT with the file body alone succeeded.
+- The result arrived in about 10 s: "artificial", ensemble score 0.92. The sample is synthetic, so that is the expected answer.
+- Four models were still `ANALYZING` when the ensemble was final.
+- A file upload reported "retrieving" at first, because the social-link fields also appear on file uploads. Fixed: they now count only when a link was submitted.
+- Model names differ from RD's documented examples (e.g. `rd-full-elm-img`), which confirms they must stay data.
+- RD's heat map is a greyscale PNG with transparency, the size of the photo, with white glow where a model reacted. Faike's strength legend does not describe it and is now hidden unless there are region outlines. The glow is faint over bright photos (design item below).
+
+**Verified.**
+- Lint, typecheck, 151 unit tests and the production build are clean. New tests cover the poller, the result composer, the browser API client, the live service (abort, retry, cancel, still-analysing models, other media staying on the mock) and live-shaped adapter data.
+- A production build was run in Chromium against a local RD stand-in shaped after the live responses: 20/20 checks.
+  - Covered: full flow, sequential polling that stops at the result, heat map, neutral model labels, no RD account data on the page, no key from the browser, old polling aborted by a new check, CORS-blocked upload followed by retry, status errors followed by retry on the same request, cancel, and mobile layout.
+  - Server logs contained no key or upload token.
+- Not verified: a real browser upload against RD. It is blocked by CORS as above, and this environment's Chromium cannot open the production site through its proxy. The live path was verified server-side with curl, including the browser-style CORS preflight.
+
+**Decisions** (derived; see also the table below):
+- "This is taking longer than usual" state for the polling deadline, with Try again (the handoff has no such state).
+- Model names hidden behind `RD_MODEL_NAMES_PUBLIC = false` until RD confirms end users may see them (HANDOFF §12.12); rows read "Model 1", "Model 2"…
+- The handoff's Unable copy "try again without re-uploading" stays: the person does not choose the file again, but the browser does send it again, because RD documents no way to re-run a check.
+- The example photo on the home page is now a real check and uses RD quota each time.
+
 ## Remaining work
 
-### Stage 3b — Connect the interface
-- [ ] **First, with a real key:** confirm a browser PUT to the upload URL works from Faike's origin (CORS; not covered by RD's docs), the request id format, and a live media detail for each media type and a social link.
-- [ ] A `ScanService` that calls the routes (presign → PUT with progress → poll; social → poll), composes `ScanResult` from the input summary plus `ScanAnalysis`, and polls with back-off, paused while the tab is hidden, with an overall deadline; swap it in `src/lib/scan/client.ts`.
-- [ ] Pasted text uploaded as a `.txt` file through the same presign flow (RD documents no text-body endpoint).
-- [ ] Align browser validation with the server: extensions, not only MIME families (HEIC or WebM currently pass the browser and are refused by the server). The bundled sample video is WebM, which RD does not accept; an MP4 sample is needed if it is ever sent to RD.
+### Stage 3b, part 2 — Remaining media and hardening of the real flow
+- [ ] **RD CORS allow-list for Faike's origins** (see the blocker above), then a real browser check on the Vercel deployment.
+- [ ] Audio, video, text (pasted text as a `.txt` upload) and social links on the live service, one slice each. The bundled sample video is WebM, which RD does not accept; an MP4 sample is needed.
 - [ ] Not-applicable copy for RD's real codes (`cross-talk`, `detected`, `duration`, `quality`, `language`, `relevance`); the placeholder `multiple_speakers` goes.
-- [ ] Map the server's error codes onto the handoff's system states.
-- [ ] Feedback: RD needs a label (`REAL`, `SYNTHETIC`, `MANIPULATED`, `UNKNOWN`) and a category (`FALSE_POSITIVE`, `FALSE_NEGATIVE`, `CONFIRMATION`, `OTHER`); mapping Faike's Yes / No / Not sure is a product decision. RD's feedback response includes the account holder's name and email, which must never be passed on.
+- [ ] Heat map presentation: RD's greyscale mask is faint over bright photos. Recolouring it in Faike's colours needs CORS on RD's image storage or a server relay; design decision.
+- [ ] Heat map URLs expire after 15 minutes: re-fetch the status when the details page opens after that.
+- [ ] Feedback: RD needs a label (`REAL`, `SYNTHETIC`, `MANIPULATED`, `UNKNOWN`) and a category (`FALSE_POSITIVE`, `FALSE_NEGATIVE`, `CONFIRMATION`, `OTHER`); mapping Faike's Yes / No / Not sure is a product decision. Real checks keep the answer in the tab for now. RD's feedback response includes the account holder's name and email, which must never be passed on.
 - [ ] Decide how to present text explainability (RD's pre-signed HTML page) and social-link previews (`storageLocation` / `thumbnail`), and whether to fetch the separate audio result of a video.
-- [ ] Server-side scan record so direct links and retry work across devices; retention period (RD's originals are subject to RD's own retention).
-- [ ] Replace remaining placeholder config (meter thresholds); remove the mock layer (`src/mocks/`, `/mock`, `/mock/run`, `?preview=`), keeping the example files.
-- [ ] Vercel environment variables (Production and Preview) for the two RD settings.
+- [ ] Server-side scan record so direct links and retry work across devices and after a reload; retention period (RD's originals are subject to RD's own retention).
+- [ ] Replace remaining placeholder config (meter thresholds); remove the mock layer once every input is live, keeping the example files.
+- [ ] Vercel environment variables for Preview as well as Production (confirm scope).
 
 ### Stage 4 — Quality and hardening
 - [ ] Design review of the derived views (photo, video, text, social link, selected-file state, connection failure).
@@ -111,7 +153,7 @@ Built against RD's current documentation (checked 24 Sep 2026: API Quickstart, A
 - Favicon, app icon and social-share image.
 
 ### Reality Defender (HANDOFF §12)
-See the Stage 3a table: 5 answered, 4 partly answered, 3 open (thresholds, audio segments, showing model names). Questions to put to RD: the `aggregation.json` schema, browser upload CORS, the upload URL lifetime, the request id format, webhooks, whether model names may be shown, and whether Faike's RD plan covers video, text and links (RD's free tier covers images and audio only).
+See the Stage 3a table: 5 answered, 4 partly answered, 3 open (thresholds, audio segments, showing model names). Questions to put to RD: adding Faike's origins to the upload CORS allow-list (confirmed blocking), the `aggregation.json` schema, the upload URL lifetime, the request id format, webhooks, whether model names may be shown, and whether Faike's RD plan covers video, text and links (RD's free tier covers images and audio only).
 
 ### Product (HANDOFF §13)
 Share format · retention period · signed-out history · status-chip copy for authentic and artificial ("Looks good", "Be careful with this one" are proposals) · Plus model · follow-up on feedback "No".
@@ -140,6 +182,10 @@ Share format · retention period · signed-out history · status-chip copy for a
 | Direct links | Finished checks are kept for the browser session (mock); local media previews are unavailable after a reload | Mock stand-in |
 | Default mock outcomes | Photo → authentic, voice and text → suspicious, video and video links → likely AI | Mock |
 | RD file name | Random `<uuid>.<ext>` instead of the person's file name | Privacy, derived |
+| Polling deadline | "This is taking longer than usual" + Try again (keeps waiting on the same request) | Derived |
+| Model names | Hidden ("Model 1"…) until RD permits showing them | CLAUDE.md rule, placeholder |
+| Heat map legend | Strength legend only with region outlines; RD's heat map keeps its own caption | Derived from live data |
+| One real check at a time | A new check stops and removes a real check still in progress | Brief |
 | Missing RD status | Treated as still processing; the client's polling deadline will bound it | Derived |
 | Heat maps | Only with a suspicious or artificial verdict, so a model's flags never contradict the ensemble | CLAUDE.md rule |
 | Earlier Stage 1 decisions | Logo size, tablet header, step strip on tablet, card width, hover colours, line-height, skip link | Unchanged |

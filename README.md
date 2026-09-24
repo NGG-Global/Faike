@@ -31,7 +31,7 @@ Copy `.env.example` to `.env.local` and set the Reality Defender API key. Both v
 
 ## Mock data
 
-The interface is not connected to Reality Defender yet: it runs on fixtures and bundled samples through a mock scan service, and nothing is uploaded. Open `/mock` for links to every state and to every verdict for every media type. The server routes under `/api/scans` are built (see `docs/architecture.md` §5) and need the variables above.
+Photos are checked for real by Reality Defender through the routes under `/api/scans` (see `docs/architecture.md` §5), which need the variables above. The browser uploads the photo directly to Reality Defender, which currently works only once RD has added the site's origin to its CORS allow-list (`progress.md`). Audio, video, text and links still run on fixtures and bundled samples through a mock scan service. Open `/mock` for links to every state and to every verdict for every media type; those links always use the mock.
 
 ## Documentation
 
