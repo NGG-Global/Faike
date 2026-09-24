@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Faike D2 — Audio evidence</title>
+<!-- Static reference comp exported from the Faike D2 design canvas. Pixel-accurate at the artboard size; NOT production code. -->
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&amp;family=Figtree:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F2F4EE;color:#1B2723;font-family:'Figtree',system-ui,sans-serif}
+a{color:#1B2723}a:hover{color:#146356}
+.dsp{font-family:'Bricolage Grotesque',sans-serif}
+.hl{background:linear-gradient(transparent 40%,#FFD447 40%,#FFD447 90%,transparent 90%);padding:0 1px}
+.pill2{font:600 15px 'Figtree',sans-serif;height:48px;padding:0 20px;border-radius:999px;border:1.5px solid #1B2723;background:transparent;color:#1B2723;cursor:pointer;display:inline-flex;align-items:center;gap:8px;text-decoration:none;box-sizing:border-box}
+.card{background:#FFFFFF;border-radius:28px;padding:28px;box-sizing:border-box}
+.mom{display:flex;align-items:center;gap:16px;padding:16px 18px;border-radius:20px;background:#F7F8F4}
+.badge{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font:700 15px 'Bricolage Grotesque',sans-serif;flex-shrink:0}
+.tag{height:28px;padding:0 12px;border-radius:999px;font-size:13px;font-weight:700;display:inline-flex;align-items:center}
+.play{height:44px;padding:0 16px;border-radius:999px;border:1.5px solid #1B2723;background:#FFFFFF;font:600 14px 'Figtree',sans-serif;color:#1B2723;display:inline-flex;align-items:center;gap:8px;cursor:pointer}
+.ok{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:500;min-height:30px}
+.acc{width:100%;min-height:64px;display:flex;align-items:center;justify-content:space-between;background:none;border:0;font:700 17px 'Figtree',sans-serif;color:#1B2723;cursor:pointer;padding:0}
+dt{font-size:13px;color:#55625D}
+dd{margin:2px 0 14px;font-size:15px;font-weight:600}
+.fb{height:44px;padding:0 16px;border-radius:999px;border:1.5px solid #C3CBBE;background:#FFFFFF;font:600 14px 'Figtree',sans-serif;color:#1B2723;cursor:pointer}
+</style>
+</head>
+<body>
+<div style="width: 1440px; height: 1360px; box-sizing: border-box; background: #F2F4EE; display: flex; flex-direction: column">
+<header style="height: 84px; padding: 0 56px; display: flex; align-items: center; justify-content: space-between">
+<a href="#" aria-label="Faike home" style="text-decoration: none"><span class="dsp" style="font-size: 34px; font-weight: 800; letter-spacing: -0.03em">f<span class="hl">ai</span>ke</span></a>
+<nav style="display: flex; align-items: center; gap: 28px; font-size: 15px; font-weight: 600">
+<a href="#" style="text-decoration: none">History</a>
+<a href="01-upload.html" class="pill2" style="height: 44px">Check something else</a>
+</nav>
+</header>
+<main style="padding: 8px 200px 0; display: flex; flex-direction: column; gap: 20px">
+<div style="display: flex; align-items: flex-end; justify-content: space-between">
+<div>
+<a href="03-result.html" style="font-size: 15px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; min-height: 44px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1B2723" stroke-width="2.2" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>Back to result</a>
+<h1 class="dsp" style="margin: 0; font-size: 44px; font-weight: 800; letter-spacing: -0.03em">Where Faike heard it</h1>
+</div>
+<span class="tag" style="height: 36px; padding: 0 16px; background: #FFE9B8; color: #8A5200; font-size: 14px">Suspicious signals detected</span>
+</div>
+<section class="card" aria-label="Audio player">
+<div style="display: flex; align-items: center; gap: 20px">
+<button aria-label="Play" style="width: 64px; height: 64px; border-radius: 50%; border: 0; background: #FFD447; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0"><svg width="26" height="26" viewBox="0 0 24 24" fill="#1B2723" aria-hidden="true"><path d="M8 5l12 7-12 7z"></path></svg></button>
+<div style="flex-grow: 1"><div style="font-size: 18px; font-weight: 700">voicenote_0923.m4a</div><div style="font-size: 14px; color: #55625D; margin-top: 2px"><span style="font-weight: 700; color: #1B2723">0:14</span> / 0:48</div></div>
+<div style="display: flex; gap: 16px; font-size: 13px; font-weight: 600; color: #55625D">
+<span style="display: flex; align-items: center; gap: 6px"><span style="width: 12px; height: 12px; border-radius: 3px; background: #E08A00"></span>Strong signal</span>
+<span style="display: flex; align-items: center; gap: 6px"><span style="width: 12px; height: 12px; border-radius: 3px; background: #F7C873"></span>Some signal</span>
+</div>
+</div>
+<div style="position: relative; margin-top: 30px; height: 120px">
+<div style="position: absolute; left: 125px; width: 167px; top: 0; bottom: 0; background: #FFE3AE; border-radius: 12px"></div>
+<div style="position: absolute; left: 458px; width: 105px; top: 0; bottom: 0; background: #FFF3D6; border-radius: 12px"></div>
+<div style="position: absolute; left: 729px; width: 125px; top: 0; bottom: 0; background: #FFE3AE; border-radius: 12px"></div>
+<span class="badge" style="position: absolute; left: 131px; top: 6px; width: 26px; height: 26px; font-size: 13px; background: #1B2723; color: #FFFFFF">1</span>
+<span class="badge" style="position: absolute; left: 464px; top: 6px; width: 26px; height: 26px; font-size: 13px; background: #1B2723; color: #FFFFFF">2</span>
+<span class="badge" style="position: absolute; left: 735px; top: 6px; width: 26px; height: 26px; font-size: 13px; background: #1B2723; color: #FFFFFF">3</span>
+<div style="position: absolute; inset: 0; display: flex; align-items: center; gap: 4px">
+<span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 12px; background: #1B2723"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 63px; background: #1B2723"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 85px; background: #1B2723"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 70px; background: #1B2723"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 36px; background: #1B2723"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 33px; background: #1B2723"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 37px; background: #1B2723"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 15px; background: #1B2723"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 27px; background: #1B2723"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 17px; background: #1B2723"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 52px; background: #1B2723"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 83px; background: #1B2723"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 84px; background: #1B2723"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 49px; background: #1B2723"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 40px; background: #E08A00"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 79px; background: #E08A00"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 82px; background: #E08A00"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 53px; background: #E08A00"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 21px; background: #E08A00"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 40px; background: #E08A00"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 33px; background: #E08A00"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 20px; background: #E08A00"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 22px; background: #E08A00"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 32px; background: #E08A00"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 68px; background: #E08A00"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 86px; background: #E08A00"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 67px; background: #E08A00"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 28px; background: #E08A00"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 65px; background: #E08A00"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 86px; background: #E08A00"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 69px; background: #E08A00"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 33px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 35px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 40px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 27px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 21px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 16px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 49px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 78px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 78px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 43px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 56px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 80px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 81px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 51px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 22px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 42px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 36px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 27px; background: #E9A93A"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 17px; background: #E9A93A"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 30px; background: #E9A93A"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 64px; background: #E9A93A"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 80px; background: #E9A93A"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 61px; background: #E9A93A"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 30px; background: #E9A93A"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 80px; background: #E9A93A"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 86px; background: #E9A93A"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 68px; background: #E9A93A"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 29px; background: #E9A93A"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 37px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 44px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 30px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 29px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 15px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 45px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 73px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 72px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 37px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 58px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 95px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 81px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 48px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 23px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 45px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 40px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 24px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 27px; background: #E08A00"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 27px; background: #E08A00"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 59px; background: #E08A00"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 74px; background: #E08A00"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 55px; background: #E08A00"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 31px; background: #E08A00"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 81px; background: #E08A00"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 100px; background: #E08A00"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 66px; background: #E08A00"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 25px; background: #E08A00"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 39px; background: #E08A00"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 47px; background: #E08A00"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 33px; background: #E08A00"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 24px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 28px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 41px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 67px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 65px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 31px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 59px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 95px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 93px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 45px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 24px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 48px; background: #A9B3AD"></span><span style="width: 5.6px; flex-shrink: 0; border-radius: 3px; height: 43px; background: #A9B3AD"></span>
+</div>
+<div style="position: absolute; left: 290px; top: -6px; bottom: -6px; width: 3px; background: #1B2723; border-radius: 2px"></div>
+</div>
+<div style="margin-top: 10px; display: flex; justify-content: space-between; font-size: 12px; color: #55625D; font-weight: 600">
+<span>0:00</span><span>0:10</span><span>0:20</span><span>0:30</span><span>0:40</span><span>0:48</span>
+</div>
+</section>
+<div style="display: flex; gap: 20px">
+<section class="card" style="flex-grow: 1">
+<h2 class="dsp" style="margin: 0 0 16px; font-size: 24px; font-weight: 700; letter-spacing: -0.02em">3 moments flagged</h2>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div class="mom"><span class="badge" style="background: #1B2723; color: #FFFFFF">1</span><div style="flex-grow: 1"><div style="font-size: 17px; font-weight: 700">0:06 – 0:14</div><div style="font-size: 14px; color: #55625D; margin-top: 2px">The voice here reads strongly as synthetic.</div></div><span class="tag" style="background: #FFE3AE; color: #8A5200">Strong</span><button class="play"><svg width="14" height="14" viewBox="0 0 24 24" fill="#1B2723" aria-hidden="true"><path d="M8 5l12 7-12 7z"></path></svg>Play</button></div>
+<div class="mom"><span class="badge" style="background: #1B2723; color: #FFFFFF">2</span><div style="flex-grow: 1"><div style="font-size: 17px; font-weight: 700">0:22 – 0:27</div><div style="font-size: 14px; color: #55625D; margin-top: 2px">Some signs, but weaker and less consistent.</div></div><span class="tag" style="background: #FFF3D6; color: #8A5200">Some</span><button class="play"><svg width="14" height="14" viewBox="0 0 24 24" fill="#1B2723" aria-hidden="true"><path d="M8 5l12 7-12 7z"></path></svg>Play</button></div>
+<div class="mom"><span class="badge" style="background: #1B2723; color: #FFFFFF">3</span><div style="flex-grow: 1"><div style="font-size: 17px; font-weight: 700">0:35 – 0:41</div><div style="font-size: 14px; color: #55625D; margin-top: 2px">The voice here reads strongly as synthetic.</div></div><span class="tag" style="background: #FFE3AE; color: #8A5200">Strong</span><button class="play"><svg width="14" height="14" viewBox="0 0 24 24" fill="#1B2723" aria-hidden="true"><path d="M8 5l12 7-12 7z"></path></svg>Play</button></div>
+</div>
+<p style="margin: 16px 0 0; font-size: 14px; color: #55625D">The rest of the recording sounded like a real person to Faike.</p>
+</section>
+<aside style="width: 340px; display: flex; flex-direction: column; gap: 20px; flex-shrink: 0">
+<section class="card" style="padding: 24px">
+<h2 style="margin: 0 0 12px; font-size: 16px; font-weight: 700">Was the recording good enough?</h2>
+<div class="ok"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#146356" stroke-width="2.6" aria-hidden="true"><path d="M5 12l5 5L20 7"></path></svg>Long enough</div>
+<div class="ok"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#146356" stroke-width="2.6" aria-hidden="true"><path d="M5 12l5 5L20 7"></path></svg>One speaker</div>
+<div class="ok"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#146356" stroke-width="2.6" aria-hidden="true"><path d="M5 12l5 5L20 7"></path></svg>Mostly speech, not music</div>
+<div class="ok"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#146356" stroke-width="2.6" aria-hidden="true"><path d="M5 12l5 5L20 7"></path></svg>Clear enough to hear</div>
+<p style="margin: 10px 0 0; font-size: 14px; color: #146356; font-weight: 600">Yes, this sample was suitable.</p>
+</section>
+<section class="card" style="padding: 24px">
+<dl style="margin: 0">
+<dt>File</dt><dd>voicenote_0923.m4a</dd>
+<dt>Type</dt><dd>Audio · M4A · 1.1 MB</dd>
+<dt>Language</dt><dd>English (detected)</dd>
+<dt>Checked</dt><dd style="margin-bottom: 0">24 Sep 2026, 14:32</dd>
+</dl>
+</section>
+</aside>
+</div>
+<section class="card" style="padding: 8px 28px">
+<button class="acc" aria-expanded="true">Why did Faike reach this result?<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1B2723" stroke-width="2.2" aria-hidden="true"><path d="M6 15l6-6 6 6"></path></svg></button>
+<p style="margin: 0 0 20px; font-size: 16px; line-height: 1.6; color: #3D4A45; max-width: 860px">Two short stretches sounded strongly synthetic, but most of the recording sounded like a real person. That mix is why Faike says "suspicious" instead of "likely AI". A clip can be partly edited, or the detectors can react to things like heavy compression.</p>
+<div style="height: 1px; background: #DCE1D8"></div>
+<button class="acc" aria-expanded="false">Model results <span style="font-weight: 500; color: #55625D; margin-left: 8px; margin-right: auto">For the curious · 3 models</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1B2723" stroke-width="2.2" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button>
+</section>
+<div style="display: flex; align-items: center; gap: 10px">
+<span style="font-size: 15px; font-weight: 600; color: #55625D">Does this seem right?</span>
+<button class="fb">Yes</button><button class="fb">No</button><button class="fb">Not sure</button>
+</div>
+</main>
+</div>
+</body>
+</html>

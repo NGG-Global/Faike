@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Faike D2 — System states</title>
+<!-- Static reference comp exported from the Faike D2 design canvas. Pixel-accurate at the artboard size; NOT production code. -->
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&amp;family=Figtree:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F2F4EE;color:#1B2723;font-family:'Figtree',system-ui,sans-serif}
+a{color:#1B2723}
+.dsp{font-family:'Bricolage Grotesque',sans-serif}
+.card{background:#FFFFFF;border-radius:28px;padding:24px;box-sizing:border-box;display:flex;flex-direction:column;gap:14px;min-height:480px}
+.lbl{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#55625D}
+.h{font-family:'Bricolage Grotesque',sans-serif;font-size:27px;line-height:1.05;font-weight:800;letter-spacing:-.025em;margin:0}
+.p{margin:0;font-size:15px;line-height:1.5;color:#3D4A45}
+.pill{font:600 15px 'Figtree',sans-serif;height:48px;padding:0 20px;border-radius:999px;border:0;background:#1B2723;color:#FFFFFF;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;box-sizing:border-box}
+.pill2{font:600 15px 'Figtree',sans-serif;height:48px;padding:0 18px;border-radius:999px;border:1.5px solid #1B2723;background:transparent;color:#1B2723;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box}
+.track{height:12px;border-radius:999px;background:#EEF0EA;position:relative;overflow:hidden}
+.m5{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px;align-items:end}
+.s{height:14px;border-radius:999px}
+.ok{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:500}
+</style>
+</head>
+<body>
+<div style="width: 1440px; height: 1200px; box-sizing: border-box; padding: 56px; background: #F2F4EE; display: flex; flex-direction: column; gap: 32px">
+<div style="display: flex; align-items: flex-end; justify-content: space-between">
+<div>
+<span class="lbl">Direction 2 · Just drop it</span>
+<h1 class="dsp" style="margin: 8px 0 0; font-size: 50px; font-weight: 800; letter-spacing: -0.035em">System states</h1>
+</div>
+<p class="p" style="max-width: 460px; color: #55625D">Each state is one friendly card: what's happening, why, and one obvious button. Colour always comes with a word.</p>
+</div>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px">
+<article class="card">
+<span class="lbl">Uploading</span>
+<h2 class="h">Sending it over…</h2>
+<div style="display: flex; align-items: center; gap: 12px; background: #F7F8F4; border-radius: 18px; padding: 14px">
+<span style="width: 44px; height: 44px; border-radius: 12px; background: #FFFFFF; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1B2723" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"></rect><circle cx="9" cy="10" r="2"></circle><path d="M21 16l-5-5-9 9"></path></svg></span>
+<div><div style="font-size: 15px; font-weight: 700">beach-sunset.jpg</div><div style="font-size: 13px; color: #55625D">7.8 of 12.4 MB</div></div>
+</div>
+<div class="track"><div style="position: absolute; left: 0; top: 0; bottom: 0; width: 63%; background: #1B2723; border-radius: 999px"></div></div>
+<p class="p">We'll start checking the moment it lands.</p>
+<div style="margin-top: auto"><button class="pill2" style="width: 100%">Cancel</button></div>
+</article>
+<article class="card">
+<span class="lbl">Getting a link</span>
+<h2 class="h">Grabbing the video from the link…</h2>
+<div style="border-radius: 18px; overflow: hidden; border: 1.5px solid #DCE1D8">
+<div style="height: 110px; background: repeating-linear-gradient(135deg, #EEF0EA 0 10px, #F7F8F4 10px 20px); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; color: #55625D">Preview loading</div>
+<div style="padding: 12px 14px"><div style="font-size: 14px; font-weight: 700">tiktok.com/@citybeat…</div><div style="font-size: 13px; color: #55625D; margin-top: 2px">Video post</div></div>
+</div>
+<p class="p">If the post is private or removed, we'll let you know and you can upload the file instead.</p>
+</article>
+<article class="card">
+<span class="lbl">Partly done</span>
+<h2 class="h">The picture's checked. Still listening to the sound.</h2>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; justify-content: space-between; align-items: center; background: #F7F8F4; border-radius: 16px; padding: 12px 14px"><span style="font-size: 15px; font-weight: 700">Video</span><span style="font-size: 13px; font-weight: 700; color: #146356; background: #D5EDE7; padding: 4px 10px; border-radius: 999px">Looks real</span></div>
+<div style="display: flex; justify-content: space-between; align-items: center; background: #F7F8F4; border-radius: 16px; padding: 12px 14px"><span style="font-size: 15px; font-weight: 700">Audio</span><span style="font-size: 13px; font-weight: 600; color: #55625D">Checking…</span></div>
+</div>
+<p class="p">Your final answer might change once the audio is done.</p>
+</article>
+<article class="card" style="background: #D5EDE7">
+<span class="lbl" style="color: #146356">Authentic</span>
+<h2 class="h">Likely authentic</h2>
+<p class="p">Faike didn't find meaningful signs of AI in this photo.</p>
+<div style="background: #FFFFFF; border-radius: 18px; padding: 16px 14px 12px">
+<div class="m5"><div style="height: 26px; border-radius: 999px; background: #146356; box-shadow: 0 0 0 3px #1B2723"></div><div class="s" style="background: #CFE7E0"></div><div class="s" style="background: #EEF0EA"></div><div class="s" style="background: #FBE7C4"></div><div class="s" style="background: #F6D2C9"></div></div>
+<div style="display: flex; justify-content: space-between; margin-top: 8px; font-size: 12px; font-weight: 700"><span>Likely real</span><span style="color: #55625D">Likely AI</span></div>
+</div>
+<p class="p" style="font-size: 14px">No detector can rule out every trick. If it matters, check the source too.</p>
+<div style="margin-top: auto"><button class="pill" style="width: 100%">See the details</button></div>
+</article>
+<article class="card" style="background: #FAD7CE">
+<span class="lbl" style="color: #A8321F">Artificial</span>
+<h2 class="h">Likely AI-generated or manipulated</h2>
+<p class="p">Strong, consistent signs of AI across this image.</p>
+<div style="background: #FFFFFF; border-radius: 18px; padding: 16px 14px 12px">
+<div class="m5"><div class="s" style="background: #CFE7E0"></div><div class="s" style="background: #E3EFEA"></div><div class="s" style="background: #EEF0EA"></div><div class="s" style="background: #FBE7C4"></div><div style="height: 26px; border-radius: 999px; background: #D8482F; box-shadow: 0 0 0 3px #1B2723"></div></div>
+<div style="display: flex; justify-content: space-between; margin-top: 8px; font-size: 12px; font-weight: 700"><span style="color: #55625D">Likely real</span><span>Likely AI</span></div>
+</div>
+<p class="p" style="font-size: 14px">Before you share it, it's worth finding where it came from.</p>
+<div style="margin-top: auto"><button class="pill" style="width: 100%">Show me where</button></div>
+</article>
+<article class="card">
+<span class="lbl">Not applicable</span>
+<h2 class="h">We need a clearer sample</h2>
+<p class="p" style="color: #1B2723">We couldn't confidently analyse this clip because multiple speakers were detected.</p>
+<div style="background: #F7F8F4; border-radius: 18px; padding: 14px; display: flex; flex-direction: column; gap: 8px">
+<div class="ok"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#146356" stroke-width="2.6" aria-hidden="true"><path d="M5 12l5 5L20 7"></path></svg>Long enough</div>
+<div class="ok" style="font-weight: 700"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#A8321F" stroke-width="2.6" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>One speaker</div>
+<div class="ok"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#146356" stroke-width="2.6" aria-hidden="true"><path d="M5 12l5 5L20 7"></path></svg>Mostly speech</div>
+</div>
+<p class="p" style="font-size: 14px">Try trimming it to a part where just one person is talking.</p>
+<div style="margin-top: auto"><button class="pill" style="width: 100%">Try another clip</button></div>
+</article>
+<article class="card">
+<span class="lbl">Unable to evaluate</span>
+<h2 class="h">That didn't work this time</h2>
+<p class="p" style="color: #1B2723">Something went wrong on our side while checking your file. It's usually temporary.</p>
+<p class="p">Your file is still here, so you can try again without re-uploading.</p>
+<div style="margin-top: auto; display: flex; flex-direction: column; gap: 8px"><button class="pill" style="width: 100%">Try again</button><button class="pill2" style="width: 100%">Check a different file</button></div>
+</article>
+<article class="card" style="background: #1B2723; color: #FFFFFF">
+<span class="lbl" style="color: #FFD447">Plus feature</span>
+<h2 class="h" style="color: #FFFFFF">Videos, text and links come with Faike Plus</h2>
+<p class="p" style="color: #D5DCD8">The free version checks photos and audio. You dropped a video, so this one needs Plus.</p>
+<div style="background: rgba(255,255,255,0.08); border-radius: 16px; padding: 12px 14px; font-size: 14px; font-weight: 600">street-clip.mp4 · 1:12</div>
+<div style="margin-top: auto; display: flex; flex-direction: column; gap: 8px"><button class="pill" style="width: 100%; background: #FFD447; color: #1B2723">See Plus</button><button class="pill2" style="width: 100%; border-color: #FFFFFF; color: #FFFFFF">Choose a photo or audio</button></div>
+</article>
+</div>
+</div>
+</body>
+</html>

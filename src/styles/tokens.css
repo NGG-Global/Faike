@@ -1,0 +1,139 @@
+/* ---------------------------------------------------------------------
+   Copy of design/handoff/tokens.css — keep in sync with the handoff.
+   Single deviation: the Google Fonts @import on the original's first
+   rule is removed. Bricolage Grotesque and Figtree are self-hosted with
+   next/font (see src/app/layout.tsx), and --font-display / --font-body
+   are re-pointed at those faces in src/app/globals.css. Every value
+   below is unchanged.
+   --------------------------------------------------------------------- */
+
+/* =====================================================================
+   Faike — Direction 2 "Just drop it" — design tokens
+   Source of truth for colour, type, radius, spacing, elevation, motion.
+   Values are taken directly from the approved D2 comps.
+   Tokens marked [NEW] were added for handoff (accessibility / gaps)
+   and do not appear in the comps.
+   ===================================================================== */
+
+
+:root {
+  /* ---------- Base palette ---------- */
+  --color-bg:            #F2F4EE; /* sage page background */
+  --color-surface:       #FFFFFF; /* cards, fields, pills */
+  --color-surface-sunk:  #F7F8F4; /* list rows inside cards (moments) */
+  --color-ink:           #1B2723; /* primary text, primary buttons, icons */
+  --color-ink-soft:      #3D4A45; /* long-form body copy */
+  --color-muted:         #55625D; /* secondary text (6.38:1 on white, 5.76:1 on bg) */
+  --color-subtle:        #9AA69F; /* decorative only: arrows, idle waveform bars. NOT for text */
+  --color-line:          #DCE1D8; /* hairlines, dividers, field borders */
+  --color-line-dashed:   #C3CBBE; /* drop-zone dashed border, pending step pill (decorative) */
+  --color-line-strong:   #7F8B84; /* [NEW] 3:1 boundary for inputs/controls where the border is the only affordance */
+  --color-neutral-track: #EEF0EA; /* progress track, "Unclear" meter segment */
+
+  /* ---------- Brand accent ---------- */
+  --color-highlight:      #FFD447; /* highlighter yellow: wordmark swipe, primary round actions, active-step dot */
+  --color-highlight-soft: #FFF1B8; /* progress sweep behind the analysing waveform */
+
+  /* ---------- Verdict: Likely authentic ---------- */
+  --verdict-authentic-fg:     #146356; /* text / active meter segment (5.8:1 on tint) */
+  --verdict-authentic-tint:   #D5EDE7; /* verdict card background */
+  --meter-real-strong:        #CFE7E0; /* "Likely real" idle segment */
+  --meter-real-soft:          #E3EFEA; /* "Leaning real" idle segment */
+
+  /* ---------- Verdict: Suspicious signals detected ---------- */
+  --verdict-suspicious-fg:    #8A5200; /* text (5.35:1 on tint) */
+  --verdict-suspicious-tint:  #FFE9B8; /* verdict card background */
+  --verdict-suspicious-body:  #3D3A2E; /* body copy on the yellow tint */
+  --meter-suspicious-active:  #F2A93B; /* active "Leaning AI" segment */
+  --signal-strong:            #E08A00; /* strong-signal waveform bars, dots, legend */
+  --signal-strong-region:     #FFE3AE; /* strong flagged region background */
+  --signal-some:              #E9A93A; /* some-signal waveform bars */
+  --signal-some-legend:       #F7C873; /* some-signal legend swatch */
+  --signal-some-region:       #FFF3D6; /* some flagged region background */
+
+  /* ---------- Verdict: Likely AI-generated or manipulated ---------- */
+  --verdict-artificial-fg:    #A8321F; /* text (4.99:1 on tint) */
+  --verdict-artificial-tint:  #FAD7CE; /* verdict card background */
+  --meter-ai-strong:          #D8482F; /* active "Likely AI" segment */
+  --meter-ai-soft:            #F6D2C9; /* "Likely AI" idle segment */
+
+  /* ---------- Not applicable / Unable: neutral by design ---------- */
+  --verdict-neutral-fg:       var(--color-ink);
+  --verdict-neutral-tint:     var(--color-surface);
+
+  /* ---------- Typography ---------- */
+  --font-display: "Bricolage Grotesque", "Figtree", system-ui, sans-serif;
+  --font-body:    "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  /* Desktop scale (px). Line-heights / tracking per role. */
+  --text-hero:        64px;  /* upload H1, 800, lh 1.02, tracking -0.035em */
+  --text-verdict:     58px;  /* result H1, 800, lh 1.00, -0.035em */
+  --text-h1:          56px;  /* analysing H1, 800, -0.035em */
+  --text-h1-detail:   44px;  /* details H1, 800, -0.03em */
+  --text-wordmark:    34px;  /* 800, -0.03em */
+  --text-state-title: 27px;  /* state card title, 800, lh 1.05, -0.025em */
+  --text-dropzone:    26px;  /* drop zone prompt, 700, -0.02em */
+  --text-h2:          24px;  /* card headings, 700, -0.02em */
+  --text-lead:        20px;  /* verdict explanation, lh 1.45 */
+  --text-intro:       19px;  /* page intro, lh 1.5 */
+  --text-body-lg:     17px;  /* field text, moment time, accordion label */
+  --text-body:        16px;  /* body, "why" paragraph lh 1.6 */
+  --text-ui:          15px;  /* buttons, nav, pills, meta */
+  --text-small:       14px;  /* meta, captions */
+  --text-caption:     13px;  /* meter labels, tags, legend */
+  --text-micro:       12px;  /* timecodes, "This file" tag */
+  --text-badge:       11px;  /* PLUS badge, 700, tracking 0.04em */
+
+  /* ---------- Radius ---------- */
+  --radius-pill:   999px;
+  --radius-hero:   36px;  /* verdict card */
+  --radius-xl:     32px;  /* drop card, analysing card */
+  --radius-lg:     28px;  /* standard cards */
+  --radius-md:     24px;  /* inner cards (meter, file summary) */
+  --radius-sm:     22px;  /* dashed drop area inside the drop card */
+  --radius-row:    20px;  /* moment rows */
+  --radius-tile:   16px;  /* file-type icon tile */
+  --radius-region: 12px;  /* flagged waveform regions, progress sweep */
+
+  /* ---------- Spacing (4px base) ---------- */
+  --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
+  --space-5: 20px; --space-6: 24px; --space-7: 28px; --space-8: 32px;
+  --space-9: 36px; --space-10: 40px; --space-12: 48px; --space-14: 56px;
+
+  /* ---------- Layout ---------- */
+  --header-height:     84px;
+  --page-gutter:       56px;   /* desktop header side padding */
+  --width-intake:      880px;  /* upload + analysing column */
+  --width-result:      1040px; /* result + details column */
+  --width-aside:       340px;  /* details right column */
+
+  /* ---------- Control sizes (all ≥ 44px touch) ---------- */
+  --control-lg: 52px;  /* result-page buttons */
+  --control-md: 48px;  /* default buttons, round submit */
+  --control-sm: 44px;  /* nav pill, feedback, play */
+  --control-hero: 84px; /* round "choose file" button */
+
+  /* ---------- Elevation ---------- */
+  --shadow-card: 0 1px 0 #DCE1D8, 0 18px 40px -24px rgba(27, 39, 35, 0.25);
+
+  /* ---------- Focus [NEW] ---------- */
+  --focus-ring: 0 0 0 3px var(--color-surface), 0 0 0 6px var(--color-ink);
+
+  /* ---------- Motion ---------- */
+  --ease-out:       cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out:    cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast:       140ms; /* hover, press */
+  --dur-base:       240ms; /* accordion, pill state change */
+  --dur-swipe:      520ms; /* highlighter swipe */
+  --dur-meter:      600ms; /* meter segment settle */
+}
+
+/* Highlighter mark used by the wordmark and inline emphasis */
+.hl {
+  background: linear-gradient(transparent 40%, var(--color-highlight) 40%, var(--color-highlight) 90%, transparent 90%);
+  padding: 0 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-fast: 0ms; --dur-base: 0ms; --dur-swipe: 0ms; --dur-meter: 0ms; }
+}

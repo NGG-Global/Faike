@@ -1,0 +1,222 @@
+@import "tailwindcss";
+@import "../styles/tokens.css";
+
+/* =====================================================================
+   Tailwind theme
+   Tailwind's default palette, radii, type scale, shadows, easings,
+   containers and breakpoints are cleared so only Faike tokens can be
+   used. Values that exist in tokens.css are referenced, never re-typed.
+   ===================================================================== */
+
+@theme {
+  --color-*: initial;
+  --font-sans: initial;
+  --font-serif: initial;
+  --font-mono: initial;
+  --text-*: initial;
+  --radius-*: initial;
+  --shadow-*: initial;
+  --inset-shadow-*: initial;
+  --drop-shadow-*: initial;
+  --text-shadow-*: initial;
+  --ease-*: initial;
+  --animate-*: initial;
+  --container-*: initial;
+  --breakpoint-*: initial;
+
+  /* HANDOFF §5: mobile < 640px, tablet 640–1023px, desktop ≥ 1024px. */
+  --breakpoint-sm: 40rem;
+  --breakpoint-lg: 64rem;
+
+  /* HANDOFF §4: mobile display sizes (not in tokens.css). */
+  --text-hero-mobile: 40px;
+  --text-hero-mobile--line-height: 1.02;
+  --text-hero-mobile--letter-spacing: -0.035em;
+  --text-hero-mobile--font-weight: 800;
+  --text-verdict-mobile: 38px;
+  --text-verdict-mobile--line-height: 1;
+  --text-verdict-mobile--letter-spacing: -0.035em;
+  --text-verdict-mobile--font-weight: 800;
+  --text-h1-detail-mobile: 30px;
+  --text-h1-detail-mobile--letter-spacing: -0.03em;
+  --text-h1-detail-mobile--font-weight: 800;
+  --text-h2-mobile: 22px;
+  --text-h2-mobile--letter-spacing: -0.02em;
+}
+
+/* `inline reference`: utilities resolve to the token variables directly
+   and Tailwind emits no duplicate variables of its own. */
+@theme inline reference {
+  --color-bg: var(--color-bg);
+  --color-surface: var(--color-surface);
+  --color-surface-sunk: var(--color-surface-sunk);
+  --color-ink: var(--color-ink);
+  --color-ink-soft: var(--color-ink-soft);
+  --color-ink-hover: var(--color-ink-hover);
+  --color-muted: var(--color-muted);
+  --color-subtle: var(--color-subtle); /* decorative only, never text */
+  --color-line: var(--color-line);
+  --color-line-dashed: var(--color-line-dashed); /* decorative only */
+  --color-line-strong: var(--color-line-strong);
+  --color-neutral-track: var(--color-neutral-track);
+  --color-highlight: var(--color-highlight);
+  --color-highlight-soft: var(--color-highlight-soft);
+
+  --color-verdict-authentic-fg: var(--verdict-authentic-fg);
+  --color-verdict-authentic-tint: var(--verdict-authentic-tint);
+  --color-meter-real-strong: var(--meter-real-strong);
+  --color-meter-real-soft: var(--meter-real-soft);
+
+  --color-verdict-suspicious-fg: var(--verdict-suspicious-fg);
+  --color-verdict-suspicious-tint: var(--verdict-suspicious-tint);
+  --color-verdict-suspicious-body: var(--verdict-suspicious-body);
+  --color-meter-suspicious-active: var(--meter-suspicious-active);
+  --color-signal-strong: var(--signal-strong);
+  --color-signal-strong-region: var(--signal-strong-region);
+  --color-signal-some: var(--signal-some);
+  --color-signal-some-legend: var(--signal-some-legend);
+  --color-signal-some-region: var(--signal-some-region);
+
+  --color-verdict-artificial-fg: var(--verdict-artificial-fg);
+  --color-verdict-artificial-tint: var(--verdict-artificial-tint);
+  --color-meter-ai-strong: var(--meter-ai-strong);
+  --color-meter-ai-soft: var(--meter-ai-soft);
+
+  --color-verdict-neutral-fg: var(--verdict-neutral-fg);
+  --color-verdict-neutral-tint: var(--verdict-neutral-tint);
+
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
+
+  /* Type roles. Line-height, tracking and weight come from the role
+     notes in tokens.css. */
+  --text-hero: var(--text-hero);
+  --text-hero--line-height: 1.02;
+  --text-hero--letter-spacing: -0.035em;
+  --text-hero--font-weight: 800;
+  --text-verdict: var(--text-verdict);
+  --text-verdict--line-height: 1;
+  --text-verdict--letter-spacing: -0.035em;
+  --text-verdict--font-weight: 800;
+  --text-h1: var(--text-h1);
+  --text-h1--letter-spacing: -0.035em;
+  --text-h1--font-weight: 800;
+  --text-h1-detail: var(--text-h1-detail);
+  --text-h1-detail--letter-spacing: -0.03em;
+  --text-h1-detail--font-weight: 800;
+  --text-state-title: var(--text-state-title);
+  --text-state-title--line-height: 1.05;
+  --text-state-title--letter-spacing: -0.025em;
+  --text-state-title--font-weight: 800;
+  --text-dropzone: var(--text-dropzone);
+  --text-dropzone--letter-spacing: -0.02em;
+  --text-h2: var(--text-h2);
+  --text-h2--letter-spacing: -0.02em;
+  --text-lead: var(--text-lead);
+  --text-lead--line-height: 1.45;
+  --text-intro: var(--text-intro);
+  --text-intro--line-height: 1.5;
+  --text-body-lg: var(--text-body-lg);
+  --text-body: var(--text-body);
+  --text-ui: var(--text-ui);
+  --text-small: var(--text-small);
+  --text-caption: var(--text-caption);
+  --text-micro: var(--text-micro);
+  --text-badge: var(--text-badge);
+
+  --radius-pill: var(--radius-pill);
+  --radius-hero: var(--radius-hero);
+  --radius-xl: var(--radius-xl);
+  --radius-lg: var(--radius-lg);
+  --radius-md: var(--radius-md);
+  --radius-sm: var(--radius-sm);
+  --radius-row: var(--radius-row);
+  --radius-tile: var(--radius-tile);
+  --radius-region: var(--radius-region);
+
+  --shadow-card: var(--shadow-card);
+
+  --ease-out: var(--ease-out);
+  --ease-in-out: var(--ease-in-out);
+
+  /* Tailwind's own defaults, pointed at the tokens so every transition
+     uses a token duration (zeroed under reduced motion). */
+  --default-transition-duration: var(--dur-fast);
+  --default-transition-timing-function: var(--ease-out);
+  --default-font-family: var(--font-body);
+
+  --container-intake: var(--width-intake);
+  --container-result: var(--width-result);
+  --container-aside: var(--width-aside);
+}
+
+/* =====================================================================
+   Token extensions (unlayered so they sit beside tokens.css)
+   ===================================================================== */
+
+:root {
+  /* Self-hosted faces from next/font; fallback stacks as in tokens.css. */
+  --font-display: var(--font-bricolage), var(--font-figtree), system-ui, sans-serif;
+  --font-body: var(--font-figtree), system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  /* HANDOFF §5: single-column content max-width on tablet (not in tokens.css). */
+  --width-tablet: 720px;
+
+  /* Derived, not a new value: HANDOFF §6.1 "hover darkens the fill slightly". */
+  --color-ink-hover: color-mix(in oklab, var(--color-ink) 80%, black);
+}
+
+/* =====================================================================
+   Base
+   ===================================================================== */
+
+@layer base {
+  html {
+    background-color: var(--color-bg);
+    color-scheme: light;
+  }
+
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-ink);
+    font-family: var(--font-body);
+    /* The comps use the fonts' natural line-height; paragraphs set their
+       own leading from the type roles. */
+    line-height: normal;
+  }
+
+  /* HANDOFF §11: visible focus ring on every focusable element. The
+     transparent outline keeps focus visible in Windows forced-colours mode,
+     where box-shadows are removed. */
+  :focus-visible {
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    box-shadow: var(--focus-ring);
+  }
+}
+
+/* =====================================================================
+   Wordmark swipe (HANDOFF §10)
+   The highlighter band behind "Λi" draws left to right once per session,
+   on the first home-page load. The inline script in the root layout sets
+   the attribute; tokens.css zeroes --dur-swipe under reduced motion, so
+   the band then renders in its end state immediately.
+   ===================================================================== */
+
+.wordmark-band {
+  transform-box: fill-box;
+  transform-origin: left center;
+}
+
+html[data-wordmark-swipe] .wordmark-band {
+  animation: wordmark-swipe var(--dur-swipe) var(--ease-out) both;
+}
+
+@keyframes wordmark-swipe {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
