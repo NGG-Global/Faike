@@ -27,23 +27,26 @@ Never edit anything under `design/`. If the handoff changes, replace the files a
 
 ## Stack and commands
 
-Next.js 16 (App Router, Turbopack) · React 19 · TypeScript (strict) · Tailwind CSS 4 · ESLint 9 · npm. Deploy target: Vercel.
+Next.js 16 (App Router, Turbopack) · React 19 · TypeScript (strict) · Tailwind CSS 4 · ESLint 9 · Vitest · npm. Deploy target: Vercel.
 
 ```bash
 npm run dev        # local development
 npm run lint       # ESLint (next lint no longer exists in Next 16)
 npm run typecheck  # route type generation + tsc
+npm test           # Vitest unit tests (pure logic)
 npm run build      # production build
 ```
 
-Run lint, typecheck and build before every commit. This Next.js version differs from older training data: read the relevant guide in `node_modules/next/dist/docs/` before using an API.
+Run lint, typecheck, tests and build before every commit. Add unit tests for logic that decides what the person sees (meter placement, validation, mapping, copy selection). This Next.js version differs from older training data: read the relevant guide in `node_modules/next/dist/docs/` before using an API.
 
 ## Architecture rules
 
 - App Router only. Pages and layouts are Server Components by default; add `"use client"` only where state, effects, browser APIs or event handlers require it, and keep client components small and low in the tree.
 - All server-side functionality goes in Route Handlers (`src/app/api/**/route.ts`). No other backend.
 - All RD-specific code lives in one server-only adapter module. It maps RD responses into `ScanResult` (`src/lib/scan/types.ts`). The UI consumes only `ScanResult`; nothing outside the adapter reads RD's raw response.
-- Configuration values that product or RD may change (score thresholds, size and duration limits, free-tier gating) live in config modules, never inside components.
+- Configuration values that product or RD may change (score thresholds, size and duration limits, free-tier gating, platforms, reason codes) live in `src/config` or `src/lib/scan/copy.ts`, never inside components. Unconfirmed values are named or commented as placeholders.
+- Screens talk to checks only through `scanService` (`src/lib/scan/client.ts`, the `ScanService` contract) and the scan store (`useScanJob`, `useEnsureScan`). They never call RD or import the mock service directly.
+- Browser-only state is read with `useSyncExternalStore`; object URLs and other side effects are created in event handlers. The enabled React Compiler lint rules forbid synchronous setState in effects and reading refs during render.
 - The user's file is never re-hosted, shared or logged. Social-link media is never redistributed publicly.
 
 ## Reality Defender rules
@@ -56,6 +59,13 @@ Run lint, typecheck and build before every commit. This Next.js version differs 
 - **Scores are not probabilities.** Label them as model output scores. Never say "proof", "certain", "guaranteed" or "100%".
 - Confirm every assumption in HANDOFF §12 against RD's current documentation before wiring the adapter. Do not guess endpoints, field names or reason codes.
 
+## Mock data (until Stage 3)
+
+- Everything mock lives in `src/mocks/`: fixtures (every verdict × media type), the result builder, samples, the mock scan service, demo checks, mock settings, `?preview=` states and the `/mock` launcher. Product components do not embed mock data.
+- Documented seams into the mock: `src/lib/scan/client.ts` (service), `src/lib/plan.ts` (plan), the intake's example samples and `?preview=` hook. Remove the mock layer when RD is integrated; keep the example files (§6.6).
+- Fixtures use Faike's `ScanResult` shape, never a guessed RD schema. Mock model names are prefixed `mock-`; scores are illustrative.
+- `/mock` and `/mock/run` are review tools (no-index), not product pages.
+
 ## Visual rules (from the handoff)
 
 - **Tokens only.** Every colour, type size, radius, shadow, easing and duration comes from the tokens. Tailwind's default palette, type scale, radii and breakpoints are removed in `src/app/globals.css`; use the token utilities (`bg-surface`, `text-ink`, `text-muted`, `rounded-xl`, `text-hero`, `font-display` …). Do not add raw hex values.
@@ -67,7 +77,8 @@ Run lint, typecheck and build before every commit. This Next.js version differs 
 - One brand gesture, the yellow highlighter: logo band, analysis progress sweep, flagged moments. Nothing else competes with it.
 - Breakpoints: mobile < 640px, `sm:` tablet 640–1023px, `lg:` desktop ≥ 1024px. Comp widths are max-widths; layouts shrink fluidly down to 360px with no horizontal scroll. Use `PageColumn` for the intake (880) and result (1040) columns.
 - Motion: only the gestures in HANDOFF §10. Every transition and animation uses the token durations (`--dur-*`), which reduced motion sets to zero. No scroll-triggered entrances.
-- Build components with the screen that first needs them; reuse existing ones (`Button`, `RoundIconButton`, `Icon`, `StateCard`, `PageColumn`, `SiteHeader`) before creating new ones.
+- Build components with the screen that first needs them; reuse existing ones (`Button`, `RoundIconButton`, `Icon`, `StateCard`, `CardPage`, `PageColumn`, `SiteHeader`, `FlaggedList`, `Accordion`, `SegmentedControl`, tags) before creating new ones.
+- Components do not merge classes. Never pass a class that conflicts with the component's own (for example `hidden` onto something that is `flex`); put responsive visibility on a wrapper element.
 
 ## Accessibility expectations
 
@@ -84,6 +95,8 @@ Target WCAG 2.2 AA (HANDOFF §11):
 - Before sign-off: keyboard-only pass plus VoiceOver (Safari, iOS) and NVDA.
 
 ## Copy and voice
+
+Verdict wording (product brief, 24 Sep 2026): AUTHENTIC → "Likely authentic", FAKE → "Likely AI-generated or manipulated", SUSPICIOUS → "Suspicious signals detected", NOT_APPLICABLE → "Not enough suitable information", UNABLE_TO_EVALUATE → "Unable to analyze". All result copy lives in `src/lib/scan/copy.ts`; the evidence-not-proof note appears under every completed verdict.
 
 Plain, warm, second person, sentence case, short sentences. No jargon ("detector", "model", "inference") outside the "Model results" section. Errors explain what happened and what to do next; they do not apologise. Use the handoff's copy verbatim where it exists.
 

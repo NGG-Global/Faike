@@ -1,11 +1,8 @@
 import { StepStrip } from "@/components/home/StepStrip";
+import { Intake } from "@/components/intake/Intake";
 import { PageColumn } from "@/components/layout/PageColumn";
 
-/*
- * Home (01-upload), foundation stage. The universal input (drop zone,
- * paste field, example links) is added in Stage 2 between the intro and
- * the step strip, together with its validation and scan behaviour.
- */
+/* Home (01-upload): hero, the universal input, and the three steps. */
 export default function HomePage() {
   return (
     <PageColumn className="flex flex-1 flex-col items-center pt-7 text-center">
@@ -18,6 +15,8 @@ export default function HomePage() {
         Photos, voice notes, videos, text or a link. Faike checks for signs of AI and tells you what it
         found, in plain words.
       </p>
+
+      <Intake className="mt-8.5" />
 
       <StepStrip className="mt-auto pt-12 pb-9 text-left" />
     </PageColumn>

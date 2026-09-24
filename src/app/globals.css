@@ -28,6 +28,9 @@
   --breakpoint-sm: 40rem;
   --breakpoint-lg: 64rem;
 
+  /* HANDOFF §6.8 / §6.17: file names are 18px/700 (not in tokens.css). */
+  --text-file-name: 18px;
+
   /* HANDOFF §4: mobile display sizes (not in tokens.css). */
   --text-hero-mobile: 40px;
   --text-hero-mobile--line-height: 1.02;
@@ -81,6 +84,8 @@
   --color-verdict-artificial-tint: var(--verdict-artificial-tint);
   --color-meter-ai-strong: var(--meter-ai-strong);
   --color-meter-ai-soft: var(--meter-ai-soft);
+  --color-meter-ai-lean-soft: var(--meter-ai-lean-soft);
+  --color-waveform-unplayed: var(--waveform-unplayed);
 
   --color-verdict-neutral-fg: var(--verdict-neutral-fg);
   --color-verdict-neutral-tint: var(--verdict-neutral-tint);
@@ -162,6 +167,13 @@
   /* HANDOFF §5: single-column content max-width on tablet (not in tokens.css). */
   --width-tablet: 720px;
 
+  /* HANDOFF §6.11: "a pale warm tone for Leaning AI". No token was supplied;
+     the value is the one used in 05-states. */
+  --meter-ai-lean-soft: #fbe7c4;
+
+  /* HANDOFF §6.17 gives unplayed waveform bars as a literal value. */
+  --waveform-unplayed: #a9b3ad;
+
   /* Derived, not a new value: HANDOFF §6.1 "hover darkens the fill slightly". */
   --color-ink-hover: color-mix(in oklab, var(--color-ink) 80%, black);
 }
@@ -218,5 +230,59 @@ html[data-wordmark-swipe] .wordmark-band {
   }
   to {
     transform: scaleX(1);
+  }
+}
+
+/* =====================================================================
+   Signal meter settle (HANDOFF §10): idle segments fade in, then the active
+   segment grows and its ring and tag appear, 600ms in total, no bounce.
+   ===================================================================== */
+
+.meter-idle {
+  animation: meter-fade calc(var(--dur-meter) * 0.4) var(--ease-out) both;
+}
+
+.meter-active {
+  animation: meter-grow calc(var(--dur-meter) * 0.6) var(--ease-out) calc(var(--dur-meter) * 0.4) both;
+}
+
+.meter-tag {
+  animation: meter-fade calc(var(--dur-meter) * 0.3) var(--ease-out) calc(var(--dur-meter) * 0.7) both;
+}
+
+@keyframes meter-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes meter-grow {
+  from {
+    height: var(--meter-idle-height);
+    box-shadow: 0 0 0 0 var(--color-ink);
+  }
+}
+
+/* =====================================================================
+   Indeterminate progress (HANDOFF §10): a 30%-wide band loops across the
+   card over 1.6s. Under reduced motion it is replaced by a static band.
+   ===================================================================== */
+
+.sweep-loop {
+  animation: sweep-loop 1.6s linear infinite;
+}
+
+@keyframes sweep-loop {
+  from {
+    translate: -100% 0;
+  }
+  to {
+    translate: calc(100% / 0.3) 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sweep-loop {
+    animation: none;
   }
 }

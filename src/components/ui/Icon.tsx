@@ -71,6 +71,17 @@ const icons = {
     roundJoin: true,
   },
   play: { body: <path d="M8 5l12 7-12 7z" />, filled: true },
+  // Not drawn in the comps; required by HANDOFF §6.17 (play/pause) and §7.5 (link out).
+  pause: {
+    body: (
+      <>
+        <rect x="6.5" y="5" width="4" height="14" rx="1" />
+        <rect x="13.5" y="5" width="4" height="14" rx="1" />
+      </>
+    ),
+    filled: true,
+  },
+  external: { body: <path d="M8 16L16 8M10 8h6v6" />, strokeWidth: 2.2, roundCap: true },
   image: {
     body: (
       <>

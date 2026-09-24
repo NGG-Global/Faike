@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { ButtonHTMLAttributes, ComponentProps, MouseEvent, ReactNode } from "react";
+import type { ComponentProps, MouseEvent, ReactNode } from "react";
 import { cx } from "@/lib/cx";
 
 /*
@@ -16,8 +16,10 @@ import { cx } from "@/lib/cx";
  * Client component because the disabled guard needs a click handler.
  */
 
-type Variant = "primary" | "secondary" | "text";
-type Size = "sm" | "md" | "lg";
+/** `highlight` and `inverse` are the Plus gate buttons on the dark card (05-states). */
+type Variant = "primary" | "secondary" | "text" | "highlight" | "inverse";
+/** `action` is the result-page size: 54px on mobile (HANDOFF §5), 52px from tablet up. */
+type Size = "sm" | "md" | "lg" | "action";
 
 type OwnProps = {
   variant?: Variant;
@@ -29,8 +31,7 @@ type OwnProps = {
   children: ReactNode;
 };
 
-type ButtonProps = OwnProps &
-  Omit<ButtonHTMLAttributes<HTMLButtonElement>, keyof OwnProps> & { href?: never };
+type ButtonProps = OwnProps & Omit<ComponentProps<"button">, keyof OwnProps> & { href?: never };
 
 type LinkButtonProps = OwnProps &
   Omit<ComponentProps<typeof Link>, keyof OwnProps> & { href: ComponentProps<typeof Link>["href"] };
@@ -47,12 +48,15 @@ const variants: Record<Variant, string> = {
     "border-ink bg-transparent text-ink not-aria-disabled:hover:border-ink-hover not-aria-disabled:hover:text-verdict-authentic-fg",
   text:
     "border-transparent bg-transparent text-ink underline underline-offset-4 not-aria-disabled:hover:text-verdict-authentic-fg",
+  highlight: "border-transparent bg-highlight text-ink",
+  inverse: "border-surface bg-transparent text-surface not-aria-disabled:hover:bg-surface/10",
 };
 
 const sizes: Record<Size, string> = {
   sm: "h-(--control-sm) gap-2 px-5 text-ui",
   md: "h-(--control-md) gap-2 px-5 text-ui",
   lg: "h-(--control-lg) gap-2.5 px-5.5 text-body",
+  action: "h-[54px] gap-2.5 px-5.5 text-body sm:h-(--control-lg)",
 };
 
 function buttonClassName({

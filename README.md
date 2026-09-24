@@ -16,8 +16,13 @@ npm run dev        # http://localhost:3000
 | `npm run dev` | Development server |
 | `npm run lint` | ESLint |
 | `npm run typecheck` | Route type generation and TypeScript check |
+| `npm test` | Unit tests (Vitest) |
 | `npm run build` | Production build |
 | `npm run start` | Serve the production build |
+
+## Mock data
+
+Reality Defender is not connected yet. The interface runs on fixtures and bundled samples through a mock scan service; nothing is uploaded. Open `/mock` for links to every state and to every verdict for every media type.
 
 ## Documentation
 
