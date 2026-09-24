@@ -37,13 +37,13 @@ npm test           # Vitest unit tests (pure logic)
 npm run build      # production build
 ```
 
-Run lint, typecheck, tests and build before every commit. Add unit tests for logic that decides what the person sees (meter placement, validation, mapping, copy selection). This Next.js version differs from older training data: read the relevant guide in `node_modules/next/dist/docs/` before using an API.
+Run lint, typecheck, tests and build before every commit. Add unit tests for logic that decides what the person sees (meter placement, validation, mapping, copy selection). Tests never reach the network: `vitest.setup.ts` makes any unstubbed `fetch` throw, so stub RD responses in the test. Never call RD's paid API from automated tests. This Next.js version differs from older training data: read the relevant guide in `node_modules/next/dist/docs/` before using an API.
 
 ## Architecture rules
 
 - App Router only. Pages and layouts are Server Components by default; add `"use client"` only where state, effects, browser APIs or event handlers require it, and keep client components small and low in the tree.
 - All server-side functionality goes in Route Handlers (`src/app/api/**/route.ts`). No other backend.
-- All RD-specific code lives in one server-only adapter module. It maps RD responses into `ScanResult` (`src/lib/scan/types.ts`). The UI consumes only `ScanResult`; nothing outside the adapter reads RD's raw response.
+- All RD-specific code lives in `src/lib/rd/`. Every module there except the pure `verdict.ts` imports `"server-only"`: `client.ts` (the only code that reads the key and calls RD), `types.ts`, `parse.ts` (runtime validation), `adapter.ts` (RD → Faike). Route Handlers return only the shapes in `src/lib/scan/api.ts`; the UI consumes `ScanResult` and those shapes, and nothing outside `src/lib/rd/` reads RD's raw response.
 - Configuration values that product or RD may change (score thresholds, size and duration limits, free-tier gating, platforms, reason codes) live in `src/config` or `src/lib/scan/copy.ts`, never inside components. Unconfirmed values are named or commented as placeholders.
 - Screens talk to checks only through `scanService` (`src/lib/scan/client.ts`, the `ScanService` contract) and the scan store (`useScanJob`, `useEnsureScan`). They never call RD or import the mock service directly.
 - Browser-only state is read with `useSyncExternalStore`; object URLs and other side effects are created in event handlers. The enabled React Compiler lint rules forbid synchronous setState in effects and reading refs during render.
@@ -51,13 +51,13 @@ Run lint, typecheck, tests and build before every commit. Add unit tests for log
 
 ## Reality Defender rules
 
-- **Secrets never reach client code.** The RD API key is read only in server modules that import `"server-only"`. Never prefix a secret with `NEXT_PUBLIC_`, never pass it to a Client Component, never return it from a Route Handler, never log it.
+- **Secrets never reach client code.** `REALITY_DEFENDER_API_KEY` and `REALITY_DEFENDER_API_BASE_URL` are read only in `src/lib/rd/client.ts`, at request time. Never prefix a secret with `NEXT_PUBLIC_`, never pass it to a Client Component, never return it from a Route Handler, never log it, never put a real value in `.env.example`. Do not return RD account identifiers (`userId`, `institutionId`) or storage keys to the browser.
 - **Handle every RD response defensively.** Validate the shape at runtime before use; treat every field as possibly missing, null, renamed or of an unexpected type. Unknown values map to the neutral "unable" path, never to a verdict. Time out and retry network calls with back-off, and surface failures as the handoff's system states.
 - **Never hard-code individual RD detector or model names.** Model names are data from RD's response. Display them only in the "Model results" section, and only if RD permits it (HANDOFF §12.12). A friendly-name mapping, if one is ever needed, lives in config and must tolerate unknown names.
 - **The ensemble result is the primary result.** The verdict headline, signal meter and summary derive from RD's overall/ensemble result. Per-model results are secondary detail and must never override or contradict it.
 - **Never show what RD did not return.** Populate optional `ScanResult` fields only when RD (or the file's own metadata) provides them; every UI element tied to an optional field hides cleanly when it is absent. No inferred facts, invented reasons or guessed segments.
 - **Scores are not probabilities.** Label them as model output scores. Never say "proof", "certain", "guaranteed" or "100%".
-- Confirm every assumption in HANDOFF §12 against RD's current documentation before wiring the adapter. Do not guess endpoints, field names or reason codes.
+- Confirm every assumption in HANDOFF §12 against RD's current documentation before wiring the adapter. Do not guess endpoints, field names or reason codes. The status of each item is in `progress.md`; the API flow is in `docs/architecture.md` §5.
 
 ## Mock data (until Stage 3)
 

@@ -3,10 +3,10 @@ import type { Verdict } from "@/lib/scan/types";
 /*
  * Reality Defender's verdict concepts and their mapping to Faike verdicts.
  *
- * The concept names come from the product brief. The exact field that
- * carries them in RD's response must be confirmed (HANDOFF §12.1) before the
- * server adapter uses this. Pure mapping with no secrets, so the mock and the
- * future server adapter share it.
+ * RD's Media Detail documentation (checked 24 Sep 2026) lists these five
+ * values for `resultsSummary.status` (the ensemble result) and
+ * `overallStatus`. Pure mapping with no secrets, so the mock and the server
+ * adapter (src/lib/rd/adapter.ts) share it.
  */
 
 export const RD_VERDICTS = [

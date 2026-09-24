@@ -1,6 +1,6 @@
 # Faike architecture
 
-Status: Stage 2 complete. The whole interface runs on mock data through the same service contract the real integration will use. Reality Defender is not yet integrated. Sections marked **Planned** describe the intended design and remain subject to the verification items in HANDOFF §12.
+Status: Stage 3a complete. The interface runs on mock data (Stage 2). The server-side Reality Defender integration (Route Handlers, RD client, response validation and mapping) is built and unit-tested but **not yet connected to the interface**, and it has not yet been run against RD's live API with a real key. Sections marked **Planned** describe the intended design.
 
 ## 1. Overview
 
@@ -31,6 +31,7 @@ src/app/                   Routes (App Router).
   layout.tsx, globals.css  Root: fonts, metadata, skip link, logo swipe; tokens → Tailwind theme, motion.
   (site)/                  Shared "home" header: /, /history, /how-it-works, /sign-in, /plus, /mock, /mock/run.
   check/[scanId]/          The flow (page.tsx) and result details (details/page.tsx).
+  api/scans/               Route Handlers: presign, social, [requestId] (see §5).
   not-found.tsx            404.
 src/components/
   brand/ layout/ ui/       Wordmark, header, columns, cards, buttons, icons, tags, accordion, segmented control.
@@ -40,9 +41,16 @@ src/components/
   details/                 Media evidence (audio, image, video, text), flagged list, aside cards, advanced details.
 src/hooks/                 Browser helpers: media playback, decoded audio peaks, video frames, element width, media query.
 src/lib/scan/              types (ScanResult), job (flow state), store, service contract, client (swap point),
-                           input (classify/validate), media-meta, meter, copy, facts.
-src/lib/rd/verdict.ts      RD verdict concepts → Faike verdicts (defensive; shared with the future adapter).
-src/config/                Media limits and gating, meter thresholds (placeholders), social platforms (placeholder).
+                           input (classify/validate), media-meta, meter, copy, facts,
+                           api (Route Handler contract, client-safe), api-input (request validation, pure).
+src/lib/rd/                Reality Defender. verdict.ts is pure and shared with the mock; every other module
+                           imports "server-only": types (RD response subset), parse (runtime validation),
+                           client (HTTP, timeouts, retries), errors, adapter (RD → Faike status).
+src/lib/api/respond.ts     Route Handler helpers: JSON body reading, no-store responses, safe error mapping.
+src/lib/guards.ts          Runtime type checks for unknown input.
+src/config/                Media limits, gating and RD-accepted extensions; meter thresholds (placeholders);
+                           social platforms (RD's list); RD language names and ensemble-name pattern.
+.env.example               The two server-only variables, without values.
 src/mocks/                 MOCK ONLY: fixtures, result builder, samples, mock scan service, demo checks, settings,
                            home previews, review-page launcher. Removed at RD integration.
 ```
@@ -93,20 +101,83 @@ Intake (browser) ── validate (type, size, duration, Plus) ──▶ scanServ
 
 Nothing is uploaded. Previews, waveform peaks, video frames and file metadata are computed in the browser from the person's own file.
 
-**Planned (Stage 3).** A client implementing the same `ScanService` contract replaces the mock:
+### Server integration (Stage 3a: built, UI not connected)
 
-- **Server boundary.** Route Handlers are the only backend. Modules that read secrets import `"server-only"`. The RD API key is a Vercel environment variable, never prefixed `NEXT_PUBLIC_`.
-- **Adapter.** One server module maps RD responses into `ScanResult`: runtime validation, every field optional, no hard-coded model names, verdict and score from the ensemble, anything unrecognised → `unable` (via `verdictFromRd`).
-- **Lifecycle** (§9.4): client validation (already built) → server validation → upload → submit → poll or subscribe with back-off, paused while the tab is hidden → normalise → the same store updates the same screens.
+Sources, checked 24 Sep 2026: RD's documentation (API Quickstart, AWS Presigned URL, Social Media URL Upload, Media Detail, Create User Feedback) and RD's official TypeScript SDK (`@realitydefender/realitydefender` 0.1.19) where the REST pages are incomplete. The SDK is read as a reference, not installed (decision 30).
 
-**Open points for Stage 3:**
+**File flow.** Media never passes through a Faike function:
 
-- **Upload path.** Limits go up to 250 MB; Vercel Functions cap request bodies at roughly 4.5 MB (verify against current Vercel documentation), so files need a direct-to-storage or RD-provided upload URL flow.
-- **Scan persistence.** Direct links and retry across devices need a server-side scan record and file reference; storage and retention are open (§13.2). The mock keeps finished checks per browser session only.
-- **Status pattern.** Polling versus webhooks, progress percentages and cancellation depend on RD (§12.11). The interface already handles both real percentages and status-only progress.
-- **SDK or REST.** Decide after reviewing RD's current documentation.
+```
+Browser                             Faike (Route Handlers, Node)                 Reality Defender
+───────                             ────────────────────────────                 ────────────────
+POST /api/scans/presign  ─────────▶ validate name, type, size
+  { fileName, mimeType, sizeBytes }   │
+                                      └─ POST /api/files/aws-presigned ───────▶  { response: { signedUrl },
+                                         { fileName: "<uuid>.<ext>" }               requestId, … }
+                         ◀───────── { requestId, uploadUrl }
+PUT uploadUrl  (file body only) ─────────────────────────────────────────────▶  RD's storage (S3)
+GET /api/scans/{requestId}  ──────▶ GET /api/media/users/{requestId} ─────────▶  media detail
+   (poll)                ◀───────── ScanStatusResponse  ◀── validate, map ──
+```
 
-**Privacy.** No file contents in logs. Feedback sends the check id and answer only. Share never includes the person's file. Retrieved social media is never re-hosted.
+**Social flow.** `POST /api/scans/social { url }` → validate the platform → `POST /api/files/social { socialLink }` → `{ requestId }`; then the same polling. RD downloads the post itself; Faike never fetches or re-hosts it.
+
+**Faike endpoints** (contract in `src/lib/scan/api.ts`):
+
+| Route | Request | Success | Validation before RD is called |
+|---|---|---|---|
+| `POST /api/scans/presign` | `{ fileName, mimeType, sizeBytes }` | `{ requestId, uploadUrl }` | JSON content type, body ≤ 8 KB; extension in RD's list; a recognised MIME family must agree with it; size ≤ the type's limit |
+| `POST /api/scans/social` | `{ url }` | `{ requestId }` | http(s), no credentials or port, host on RD's platform list |
+| `GET /api/scans/{requestId}` | none | `ScanStatusResponse` | id matches `[A-Za-z0-9][A-Za-z0-9_-]{0,127}` |
+
+**Status mapping** (`src/lib/rd/adapter.ts`). The status is `resultsSummary.status` (ensemble), falling back to `overallStatus`, as RD's SDK resolves it.
+
+| RD | Faike |
+|---|---|
+| `socialLinkDownloadFailed: true` | `failed`, reason `retrieval` |
+| no status, `ANALYZING` | `processing`, stage `analysing` |
+| `DOWNLOADING`, or `socialLinkDownloaded: false` | `processing`, stage `retrieving` |
+| `AUTHENTIC` / `FAKE` / `SUSPICIOUS` / `NOT_APPLICABLE` / `UNABLE_TO_EVALUATE` | `complete`, verdict via `verdictFromRd` |
+| any other value | `complete`, verdict `unable` |
+
+In a complete result: `ensembleScore` = `finalScore / 100`, only for authentic, suspicious and artificial; `language` = first name in `metadata.languages` found in `RD_LANGUAGE_CODES`; `notApplicableReasons` = `metadata.reasons[].code` (RD's message text is dropped); `models` = every model except those RD marks not applicable, by the name RD returns; `heatmaps` = image only, only when the verdict is suspicious or artificial, only from non-ensemble models with status `FAKE`. RD's `userId`, `institutionId`, file names, storage keys, `storageLocation`, `thumbnail`, aggregation URLs and `explainabilityUrl` are never read.
+
+**Errors** (`src/lib/rd/errors.ts`, `src/lib/api/respond.ts`). Every failure is `{ error: { code, message } }` with a fixed message, and every response is `Cache-Control: no-store`.
+
+| RD outcome | RdError kind | Faike code (HTTP) |
+|---|---|---|
+| key or base URL missing / invalid | `not_configured` | `unavailable` (503) |
+| 401, 403 | `unauthorized` | `unavailable` (503) |
+| 400 with `free-tier-not-allowed` / `upload-limit-reached` | `quota` | `unavailable` (503) |
+| other 400, 422 | `rejected` | `rejected` (422) |
+| 404 | `not_found` | `not_found` (404) |
+| 429 | `rate_limited` | `rate_limited` (429) |
+| timeout | `timeout` | `timeout` (504) |
+| network error | `network` | `upstream_error` (502) |
+| 5xx, redirect, other status | `upstream` | `upstream_error` (502) |
+| 2xx that is not the documented shape | `bad_response` | `upstream_error` (502) |
+
+Server logs record the operation, kind, HTTP status and RD's machine code only, never the key, URLs, request ids, file names, links or response bodies. 404s are not logged.
+
+**Timeouts and retries** (`src/lib/rd/client.ts`). 8 s per attempt (`AbortSignal.timeout`), at most three attempts, back-off 0.4 s then 1.2 s. GETs retry on timeouts, network errors, 408, 500, 502, 503 and 504. POSTs retry only when RD certainly did not process them (503, or a connection that was never made: `ECONNREFUSED`, `ENOTFOUND`, `EAI_AGAIN`); a POST that timed out is not repeated, because it may have created an analysis. Redirects are not followed (`redirect: "manual"`), so the key cannot be sent to another host. Each route sets `maxDuration = 30`.
+
+**Secrets.** `REALITY_DEFENDER_API_KEY` and `REALITY_DEFENDER_API_BASE_URL` are read at request time in `src/lib/rd/client.ts` only, never prefixed `NEXT_PUBLIC_`. Every RD module except `verdict.ts` imports `server-only`, so importing it from client code fails the build. Verified after a production build with a canary key: the key is not inlined anywhere in `.next`, and no RD path, header name or variable name appears in browser chunks or prerendered HTML.
+
+**Tests.** Vitest with RD replaced by fetch stubs; `vitest.setup.ts` makes any unstubbed `fetch` throw, so no test can reach RD's paid API.
+
+**Not built yet (next step):** a `ScanService` implementation that calls these routes (presign → PUT → poll, social → poll) and composes `ScanResult` from the input summary plus `ScanAnalysis`; swap in `src/lib/scan/client.ts`; remove the mock layer.
+
+**Open points:**
+
+- **Browser upload (CORS).** A browser `PUT` to RD's storage needs RD's bucket to allow Faike's origin. RD's documentation does not cover browser uploads. Verify with a real key before connecting the interface; if it is blocked, RD must allow the origin.
+- **Upload URL lifetime.** RD documents a 15-minute expiry for media-detail URLs, not for the upload URL.
+- **Request id format.** Not documented. Faike accepts `[A-Za-z0-9_-]`, up to 128 characters, and fails closed otherwise.
+- **Detail data.** Segments, regions, scene timelines and text spans live in RD's `aggregation.json` (`modelMetadataUrl`), whose schema is not documented, so they are not mapped. Text explainability is a pre-signed HTML page; how to present it safely is undecided.
+- **Picture and sound.** Videos with audio carry `showAudioResult` and a separate `audioRequestId`; the flow for fetching that result is not documented.
+- **Access control and abuse.** A request id acts as a bearer token for its result, and the POST routes have no rate limit, so anyone can use Faike's RD quota. Both need solving before public launch (decision 38).
+- **Scan persistence.** Direct links across devices still need a server-side record of the input summary; RD holds only the analysis.
+
+**Privacy.** No file contents, file names, links or request ids in logs. RD receives a random file name (decision 33). Feedback sends the check id and answer only. Share never includes the person's file. Retrieved social media is never re-hosted.
 
 ## 6. Decision log
 
@@ -141,4 +212,13 @@ Nothing is uploaded. Previews, waveform peaks, video frames and file metadata ar
 | 27 | Button gained `action` (54/52px), `highlight` and `inverse`; responsive visibility is applied on wrapper elements. | Mobile actions are 54px (§5) and the Plus card needs dark-surface buttons; wrappers avoid conflicting `display` utilities, since components do not merge classes. |
 | 28 | Product wording from the brief for not-applicable and unable titles; `/mock` review page and `?preview=` states for review only. | The brief post-dates the handoff; the review tooling is isolated in `src/mocks` and removed at integration. |
 | 29 | Example links and demo checks use bundled samples in `public/samples`. | §6.6 requires bundled samples; the descriptors move out of `src/mocks` when the mock is removed. |
-
+| 30 | Plain `fetch` REST client instead of RD's TypeScript SDK. | RD's docs recommend the SDK, but it reads files from disk (no pre-signed flow for browser uploads), polls in-process, depends on axios, and its normalised result drops fields Faike needs (languages, reasons). The REST calls are three endpoints; the SDK source was used to verify the undocumented presign envelope. |
+| 31 | `server-only` package added (0.0.1, React team). | CLAUDE.md requires secret-reading modules to import it. Next.js handles the import itself; the package makes the dependency explicit and lets Vitest resolve its server entry. |
+| 32 | Presigned upload: the browser PUTs to RD's URL; Faike returns only `requestId` and `uploadUrl`. | The brief; keeps media out of Vercel Functions (request-body limit) and off Faike's infrastructure. `mediaId`, `code` and `errno` are not needed and not returned. |
+| 33 | RD receives `<uuid>.<ext>` as the file name, not the person's. | RD needs only the extension. Keeps personal file names out of a third party's records (data minimisation). |
+| 34 | The server enforces RD's documented extensions, not MIME types. | RD accepts files by extension. A recognised MIME family that disagrees is refused; an empty or generic MIME type is not, because browsers report some audio and video types inconsistently. |
+| 35 | Verdict from `resultsSummary.status`, then `overallStatus`; unknown → `unable`; missing → still processing. | RD: the summary is the ensemble result, the one to rely on; its SDK resolves status the same way. A missing status is treated as early processing; the client's polling deadline bounds it. |
+| 36 | Heat maps only for images, only with a suspicious or artificial verdict, only from non-ensemble `FAKE` models. | RD says other entries are invalid; showing a model's flags on an authentic verdict would contradict the ensemble. The ensemble is recognised by a name pattern from RD's SDK, kept in config (no field marks it). |
+| 37 | Retries only where repeating cannot duplicate work; redirects not followed; fixed error text; no-store responses; JSON content type required. | CLAUDE.md's defensive rules. Requiring `application/json` also blocks cross-site form posts. |
+| 38 | No access token or rate limit in this stage. | Not in the brief's contract. Recorded as a launch blocker: sign request ids (HMAC token issued with the id) and add rate limiting or bot protection on the POST routes. |
+| 39 | Social platforms updated to RD's list (Threads added); limits and extensions confirmed against RD. | HANDOFF §12.3 and §12.10 answered by RD's documentation. The mock maps Threads links to a photo post. |

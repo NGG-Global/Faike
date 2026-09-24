@@ -31,6 +31,7 @@ const LINK_MEDIA: Record<string, Exclude<MediaType, "text">> = {
   Facebook: "video",
   Instagram: "image",
   X: "image",
+  Threads: "image",
 };
 
 const ANALYSIS_MS: Record<MediaType, number> = { image: 3600, audio: 4800, video: 6000, text: 3000 };

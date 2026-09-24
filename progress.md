@@ -1,6 +1,6 @@
 # Faike — progress
 
-Last updated: 24 Sep 2026
+Last updated: 24 Sep 2026 (Stage 3a)
 
 ## Stage 1 — Foundation ✅
 
@@ -44,23 +44,61 @@ Reality Defender is **not** integrated. Every screen runs on fixtures through a 
 | 11 | Unable to evaluate | `/mock/run?sample=voice&outcome=UNABLE_TO_EVALUATE` |
 | 12 | Network / API failure | `/mock/run?sample=photo&outcome=NETWORK_ERROR` (or `OFFLINE`) |
 
+## Stage 3a — Reality Defender server integration ✅ (interface not connected)
+
+Built against RD's current documentation (checked 24 Sep 2026: API Quickstart, AWS Presigned URL, Social Media URL Upload, Media Detail, Create User Feedback) and, where those pages are incomplete, RD's official TypeScript SDK 0.1.19. **Not yet run against RD's live API**: no real key was available, and no test calls the paid API. The interface still runs on the mock.
+
+- [x] **Route Handlers** (`src/app/api/scans/`):
+  - `POST /api/scans/presign`: `{ fileName, mimeType, sizeBytes }` → `{ requestId, uploadUrl }`. The browser PUTs the file straight to RD's storage; media never passes through Faike.
+  - `POST /api/scans/social`: `{ url }` → `{ requestId }`.
+  - `GET /api/scans/{requestId}`: processing (analysing or retrieving), failed (post not retrievable) or complete with the analysis in Faike's terms.
+- [x] **Server-only RD module** (`src/lib/rd/`): typed client (three endpoints), response types for the fields Faike uses, runtime validation, adapter to Faike's status, error classification. Presign envelope verified: `signedUrl` is nested under `response`, `requestId` is top level.
+- [x] **Secrets:** `REALITY_DEFENDER_API_KEY` and `REALITY_DEFENDER_API_BASE_URL`, read at request time in one module that imports `server-only`; `.env.example` without values. Checked after a production build with a canary key: not inlined anywhere, and no RD path, header or variable name in browser chunks or HTML.
+- [x] **Defensive handling:** every field validated at runtime; unknown statuses → "unable"; verdict from the ensemble summary; account ids (`userId`, `institutionId`), file names and storage links never returned; fixed error messages; safe server logs (operation, kind, status, RD code only); `Cache-Control: no-store`.
+- [x] **Timeouts and retries:** 8 s per attempt, up to three attempts with back-off; POSTs are retried only when RD certainly did not process them; redirects are not followed; `maxDuration = 30`.
+- [x] **Privacy:** RD receives a random file name with the right extension, not the person's.
+- [x] **Config confirmed from RD's docs:** accepted extensions and limits (§12.10), social platforms including Threads (§12.3).
+- [x] **Tests:** 120 Vitest tests in total (85 new: request validation, parsing, adapter, client with timeouts and retries, Route Handlers end to end). RD is replaced by fetch stubs, and any unstubbed `fetch` throws. Mutation-checked: breaking the verdict source, the ensemble heat-map filter or the POST-timeout rule fails the suite.
+- [x] **Verified:** lint, typecheck, tests and production build clean. The production server was smoke-tested against a local RD stub: all three routes, validation, unsafe ids (never forwarded), 405 on wrong methods, and a hung upstream answering 504 after the retry budget, with only a safe summary logged.
+
+### HANDOFF §12, against RD's documentation
+
+| # | Question | Status |
+|---|---|---|
+| 1 | Response schema | **Answered.** `resultsSummary.status` (ensemble), `resultsSummary.metadata.finalScore` (0–100), `overallStatus`, `models[]` (`name`, `status`, `finalScore`, `code`). |
+| 2 | Calibrated thresholds for the meter | **Open.** None published; placeholders stay. |
+| 3 | Social platforms | **Answered.** Facebook, Instagram, Twitter/X, YouTube, TikTok, Threads. |
+| 4 | NOT_APPLICABLE reason codes | **Answered for images and audio.** Image: `relevance`. Audio: `duration`, `detected` (dial tone or music), `cross-talk` (more than one speaker), `quality`, `language`. Video: none. |
+| 5 | Audio time segments | **Open.** Only in `aggregation.json` (`chunks`), whose schema is not documented. |
+| 6 | Video regions / segments; picture and sound | **Partly.** Timelines only in `aggregation.json` (undocumented). Sound is a separate result (`showAudioResult`, `audioRequestId`). |
+| 7 | Image heat map / regions | **Partly.** Per-model heat map PNGs (non-ensemble `FAKE` models only, 15-minute URLs); boxes only in `aggregation.json` (undocumented). |
+| 8 | Text span explainability | **Partly.** A pre-signed HTML page (`explainabilityUrl`); no span data documented. |
+| 9 | Language detection | **Answered.** `metadata.languages`, lower-case names (English, Spanish and Portuguese named as examples). |
+| 10 | Formats and limits | **Answered.** Images jpg/jpeg/png/gif/webp ≤ 50 MB; audio mp3/wav/m4a/aac/ogg/flac/alac ≤ 20 MB; video mp4/mov ≤ 250 MB and 30 min; text txt ≤ 900 KB. Matches §9.3. |
+| 11 | Progress, cancellation, polling | **Partly.** No percentages or cancellation documented; poll (SDK default every 5 s) or webhook (setup not documented). In-progress statuses: `ANALYZING`, `DOWNLOADING`. |
+| 12 | Showing model names | **Open.** RD says names are not stable, and its SDK marks per-model results as deprecated. Ask RD whether end users may see them. |
+
 ## Remaining work
 
-### Stage 3 — Reality Defender integration
-- [ ] Confirm every item in HANDOFF §12 against RD's current documentation (schema, thresholds, platforms, reason codes, segments, regions, heat maps, spans, language, formats and limits, progress and cancellation, model-name display).
-- [ ] Server-only adapter with runtime validation, mapping into `ScanResult`; reuse `src/lib/rd/verdict.ts`; ensemble result primary; no hard-coded model names.
-- [ ] Route Handlers (submit, status, result, feedback) and a client implementing `ScanService`; swap it in `src/lib/scan/client.ts`.
-- [ ] Upload path within Vercel's request-size limit; server-side scan records so direct links and retry work across devices; retention period.
-- [ ] Polling or webhooks with back-off, paused while the tab is hidden; cancellation if RD supports it.
-- [ ] Replace placeholder config (meter thresholds, platforms, not-applicable reasons, accepted formats) with confirmed values.
-- [ ] Remove the mock layer (`src/mocks/`, `/mock`, `/mock/run`, `?preview=`); keep the example files for §6.6.
-- [ ] `.env.example` and Vercel environment variables.
+### Stage 3b — Connect the interface
+- [ ] **First, with a real key:** confirm a browser PUT to the upload URL works from Faike's origin (CORS; not covered by RD's docs), the request id format, and a live media detail for each media type and a social link.
+- [ ] A `ScanService` that calls the routes (presign → PUT with progress → poll; social → poll), composes `ScanResult` from the input summary plus `ScanAnalysis`, and polls with back-off, paused while the tab is hidden, with an overall deadline; swap it in `src/lib/scan/client.ts`.
+- [ ] Pasted text uploaded as a `.txt` file through the same presign flow (RD documents no text-body endpoint).
+- [ ] Align browser validation with the server: extensions, not only MIME families (HEIC or WebM currently pass the browser and are refused by the server). The bundled sample video is WebM, which RD does not accept; an MP4 sample is needed if it is ever sent to RD.
+- [ ] Not-applicable copy for RD's real codes (`cross-talk`, `detected`, `duration`, `quality`, `language`, `relevance`); the placeholder `multiple_speakers` goes.
+- [ ] Map the server's error codes onto the handoff's system states.
+- [ ] Feedback: RD needs a label (`REAL`, `SYNTHETIC`, `MANIPULATED`, `UNKNOWN`) and a category (`FALSE_POSITIVE`, `FALSE_NEGATIVE`, `CONFIRMATION`, `OTHER`); mapping Faike's Yes / No / Not sure is a product decision. RD's feedback response includes the account holder's name and email, which must never be passed on.
+- [ ] Decide how to present text explainability (RD's pre-signed HTML page) and social-link previews (`storageLocation` / `thumbnail`), and whether to fetch the separate audio result of a video.
+- [ ] Server-side scan record so direct links and retry work across devices; retention period (RD's originals are subject to RD's own retention).
+- [ ] Replace remaining placeholder config (meter thresholds); remove the mock layer (`src/mocks/`, `/mock`, `/mock/run`, `?preview=`), keeping the example files.
+- [ ] Vercel environment variables (Production and Preview) for the two RD settings.
 
 ### Stage 4 — Quality and hardening
 - [ ] Design review of the derived views (photo, video, text, social link, selected-file state, connection failure).
 - [ ] VoiceOver (Safari, iOS) and NVDA walkthrough of the full audio flow; real-device checks on iOS and Android.
 - [ ] Safari check of the WebM sample video (older iOS versions may not play WebM; an MP4 sample may be needed).
 - [ ] Security review (secrets, headers, CSP including the logo-swipe script), performance review.
+- [ ] **Launch blockers:** a signed token issued with each request id (today the id alone reads the result), and rate limiting or bot protection on `POST /api/scans/presign` and `/social` (today anyone can spend Faike's RD quota).
 
 ### Stage 5 — Deployment
 - [ ] Vercel project, environment variables, domain, `metadataBase`, favicon, app icon and social image.
@@ -73,7 +111,7 @@ Reality Defender is **not** integrated. Every screen runs on fixtures through a 
 - Favicon, app icon and social-share image.
 
 ### Reality Defender (HANDOFF §12)
-All twelve items are unverified. Until then, fixtures and placeholder config stand in for RD data.
+See the Stage 3a table: 5 answered, 4 partly answered, 3 open (thresholds, audio segments, showing model names). Questions to put to RD: the `aggregation.json` schema, browser upload CORS, the upload URL lifetime, the request id format, webhooks, whether model names may be shown, and whether Faike's RD plan covers video, text and links (RD's free tier covers images and audio only).
 
 ### Product (HANDOFF §13)
 Share format · retention period · signed-out history · status-chip copy for authentic and artificial ("Looks good", "Be careful with this one" are proposals) · Plus model · follow-up on feedback "No".
@@ -101,4 +139,7 @@ Share format · retention period · signed-out history · status-chip copy for a
 | Heat map | Mock supplies an RD-style heat map image; legend: "shows where signs of AI were picked up, not why" | Derived |
 | Direct links | Finished checks are kept for the browser session (mock); local media previews are unavailable after a reload | Mock stand-in |
 | Default mock outcomes | Photo → authentic, voice and text → suspicious, video and video links → likely AI | Mock |
+| RD file name | Random `<uuid>.<ext>` instead of the person's file name | Privacy, derived |
+| Missing RD status | Treated as still processing; the client's polling deadline will bound it | Derived |
+| Heat maps | Only with a suspicious or artificial verdict, so a model's flags never contradict the ensemble | CLAUDE.md rule |
 | Earlier Stage 1 decisions | Logo size, tablet header, step strip on tablet, card width, hover colours, line-height, skip link | Unchanged |

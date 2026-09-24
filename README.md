@@ -20,9 +20,18 @@ npm run dev        # http://localhost:3000
 | `npm run build` | Production build |
 | `npm run start` | Serve the production build |
 
+## Environment
+
+Copy `.env.example` to `.env.local` and set the Reality Defender API key. Both variables are read only on the server; never prefix them with `NEXT_PUBLIC_`.
+
+| Variable | Purpose |
+|---|---|
+| `REALITY_DEFENDER_API_KEY` | RD API key (server only) |
+| `REALITY_DEFENDER_API_BASE_URL` | RD API base URL, `https://api.prd.realitydefender.xyz` |
+
 ## Mock data
 
-Reality Defender is not connected yet. The interface runs on fixtures and bundled samples through a mock scan service; nothing is uploaded. Open `/mock` for links to every state and to every verdict for every media type.
+The interface is not connected to Reality Defender yet: it runs on fixtures and bundled samples through a mock scan service, and nothing is uploaded. Open `/mock` for links to every state and to every verdict for every media type. The server routes under `/api/scans` are built (see `docs/architecture.md` §5) and need the variables above.
 
 ## Documentation
 

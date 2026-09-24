@@ -3,12 +3,17 @@ import type { MediaType } from "@/lib/scan/types";
 
 /*
  * Media configuration (HANDOFF §9.3). Limits and free-tier gating live here,
- * never in components. The limits are the handoff's and must be re-confirmed
- * against Reality Defender's documentation (HANDOFF §12.10).
+ * never in components.
  *
- * `mimeFamilies` classifies a file into a media type by its MIME type. It is
- * NOT an allow-list of formats: the accepted formats per type must come from
- * RD's documentation and are validated server-side once RD is integrated.
+ * Limits and `extensions` match Reality Defender's AWS Presigned URL
+ * documentation (checked 24 Sep 2026): images 50 MB, audio 20 MB, video
+ * 250 MB and 30 minutes, text 900 KB. The byte limits use decimal megabytes,
+ * which is equal to or stricter than RD's figures however RD counts them.
+ *
+ * `extensions` is the allow-list the server enforces before requesting an
+ * upload URL (RD accepts a file by its extension). `mimeFamilies` only
+ * classifies a file into a media type in the browser; it is not an
+ * allow-list.
  */
 
 export interface MediaConfig {
@@ -24,6 +29,8 @@ export interface MediaConfig {
   maxDurationSec?: number;
   freeTier: boolean;
   mimeFamilies: readonly string[];
+  /** Lower-case, without the dot. */
+  extensions: readonly string[];
 }
 
 const MB = 1_000_000;
@@ -38,6 +45,7 @@ export const MEDIA: Record<MediaType, MediaConfig> = {
     maxBytes: 50 * MB,
     freeTier: true,
     mimeFamilies: ["image/"],
+    extensions: ["jpg", "jpeg", "png", "gif", "webp"],
   },
   audio: {
     typeLabel: "Audio",
@@ -48,6 +56,7 @@ export const MEDIA: Record<MediaType, MediaConfig> = {
     maxBytes: 20 * MB,
     freeTier: true,
     mimeFamilies: ["audio/"],
+    extensions: ["mp3", "wav", "m4a", "aac", "ogg", "flac", "alac"],
   },
   video: {
     typeLabel: "Video",
@@ -59,6 +68,7 @@ export const MEDIA: Record<MediaType, MediaConfig> = {
     maxDurationSec: 30 * 60,
     freeTier: false,
     mimeFamilies: ["video/"],
+    extensions: ["mp4", "mov"],
   },
   text: {
     typeLabel: "Text",
@@ -69,6 +79,7 @@ export const MEDIA: Record<MediaType, MediaConfig> = {
     maxBytes: 900_000,
     freeTier: false,
     mimeFamilies: ["text/plain"],
+    extensions: ["txt"],
   },
 };
 
