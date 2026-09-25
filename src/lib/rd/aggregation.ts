@@ -1,6 +1,7 @@
 import "server-only";
 import { isRecord } from "@/lib/guards";
 import { RdError } from "./errors";
+import { fetchPresigned } from "./presigned";
 
 /*
  * RD's `aggregation.json` (modelMetadataUrl / audioModelMetadataUrl): the
@@ -19,7 +20,6 @@ import { RdError } from "./errors";
  * REALITY_DEFENDER_LOG_AGGREGATION_SHAPE=1) and then mapped explicitly.
  */
 
-const TIMEOUT_MS = 8_000;
 const MAX_BYTES = 5_000_000;
 
 export interface AggregationFetchOptions {
@@ -30,60 +30,14 @@ export interface AggregationFetchOptions {
   maxBytes?: number;
 }
 
-/**
- * Fetches a pre-signed aggregation URL. The RD key is never sent (the URL
- * carries its own signature), redirects are refused, and the body is capped.
- */
+/** Fetches a pre-signed aggregation URL (see fetchPresigned) and parses it as JSON. */
 export async function fetchAggregation(url: string, options: AggregationFetchOptions = {}): Promise<unknown> {
-  const { fetch: fetchImpl = fetch, trustedOrigin, timeoutMs = TIMEOUT_MS, maxBytes = MAX_BYTES } = options;
-  let parsed: URL;
+  const { bytes } = await fetchPresigned(url, { ...options, maxBytes: options.maxBytes ?? MAX_BYTES });
   try {
-    parsed = new URL(url);
+    return JSON.parse(new TextDecoder().decode(bytes));
   } catch {
     throw new RdError("bad_response");
   }
-  if (parsed.protocol !== "https:" && parsed.origin !== trustedOrigin) throw new RdError("bad_response");
-
-  let response: Response;
-  try {
-    response = await fetchImpl(url, { signal: AbortSignal.timeout(timeoutMs), redirect: "error", cache: "no-store" });
-  } catch (error) {
-    const name = typeof error === "object" && error !== null ? (error as { name?: unknown }).name : undefined;
-    throw new RdError(name === "TimeoutError" || name === "AbortError" ? "timeout" : "network");
-  }
-  if (!response.ok) {
-    await response.body?.cancel().catch(() => undefined);
-    throw new RdError(response.status === 403 ? "unauthorized" : "upstream", { status: response.status });
-  }
-  if (Number(response.headers.get("content-length") ?? 0) > maxBytes) {
-    await response.body?.cancel().catch(() => undefined);
-    throw new RdError("bad_response");
-  }
-
-  const text = await readCapped(response, maxBytes);
-  try {
-    return JSON.parse(text);
-  } catch {
-    throw new RdError("bad_response");
-  }
-}
-
-async function readCapped(response: Response, maxBytes: number): Promise<string> {
-  if (!response.body) return "";
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.byteLength;
-    if (total > maxBytes) {
-      await reader.cancel().catch(() => undefined);
-      throw new RdError("bad_response");
-    }
-    chunks.push(value);
-  }
-  return new TextDecoder().decode(Buffer.concat(chunks));
 }
 
 const ENUM_LIKE = /^[A-Z][A-Z0-9_]{1,31}$/;

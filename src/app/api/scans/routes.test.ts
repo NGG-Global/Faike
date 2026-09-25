@@ -5,12 +5,14 @@ import {
   soundDetail,
   textDetail,
   videoWithSoundDetail,
+  HEATMAP_URL,
   PRESIGN_RESPONSE,
   REQUEST_ID,
   SIGNED_URL,
   SOCIAL_RESPONSE,
 } from "@/lib/rd/rd-responses.fixture";
 import { GET as getExplainability } from "./[requestId]/explainability/route";
+import { GET as getHeatmap } from "./[requestId]/heatmap/route";
 import { GET as getScan } from "./[requestId]/route";
 import { POST as presign } from "./presign/route";
 import { POST as social } from "./social/route";
@@ -238,6 +240,65 @@ describe("GET /api/scans/[requestId]/explainability", () => {
     const fetch = stubRd();
     expect((await explain("..%2Fx")).status).toBe(404);
     expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe("GET /api/scans/[requestId]/heatmap", () => {
+  const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]);
+
+  function heatmap(requestId: string, model: string | null = "mock-img-a") {
+    const query = model === null ? "" : `?model=${encodeURIComponent(model)}`;
+    return getHeatmap(new Request(`http://localhost/api/scans/${requestId}/heatmap${query}`), { params: Promise.resolve({ requestId }) });
+  }
+
+  function png(bytes: Uint8Array<ArrayBuffer> = PNG) {
+    return new Response(bytes, { status: 200, headers: { "Content-Type": "image/png" } });
+  }
+
+  it("serves the detector's PNG from Faike's origin, read through a fresh storage link each time", async () => {
+    const fresh = `${HEATMAP_URL}&sig=second`;
+    const fetch = stubRd(
+      reply(200, imageDetail()),
+      png(),
+      reply(200, imageDetail({ heatmaps: { "mock-img-a": fresh } })),
+      png(),
+    );
+    const first = await heatmap(REQUEST_ID);
+    expect(first.status).toBe(200);
+    expect(first.headers.get("content-type")).toBe("image/png");
+    expect(first.headers.get("cache-control")).toBe("private, no-store");
+    expect(first.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(first.headers.get("cross-origin-resource-policy")).toBe("same-origin");
+    expect(new Uint8Array(await first.arrayBuffer())).toEqual(PNG);
+    await heatmap(REQUEST_ID);
+
+    const [detail, storage, , freshStorage] = fetch.mock.calls;
+    expect(String(detail[0])).toBe(`${BASE_URL}/api/media/users/${REQUEST_ID}`);
+    expect(String(storage[0])).toBe(HEATMAP_URL);
+    expect(String(freshStorage[0])).toBe(fresh);
+    // The storage link is signed on its own; the RD key never goes with it.
+    expect(JSON.stringify(storage[1]?.headers ?? {})).not.toContain(API_KEY);
+    expect(storage[1]?.redirect).toBe("error");
+  });
+
+  it("answers 404 for a detector without a usable heat map, an authentic result or a missing name", async () => {
+    stubRd(reply(200, imageDetail()), reply(200, imageDetail({ overallStatus: "AUTHENTIC", resultsSummary: { status: "AUTHENTIC" } })));
+    expect((await heatmap(REQUEST_ID, "mock-img-b")).status).toBe(404);
+    expect((await heatmap(REQUEST_ID)).status).toBe(404);
+    const fetch = stubRd();
+    expect((await heatmap(REQUEST_ID, null)).status).toBe(404);
+    expect((await heatmap("..%2Fx")).status).toBe(404);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("answers a gateway error, never a broken image, when the link has expired or the file is not a PNG", async () => {
+    stubRd(reply(200, imageDetail()), new Response("<Error>AccessDenied</Error>", { status: 403 }));
+    const expired = await heatmap(REQUEST_ID);
+    expect(expired.status).toBe(503);
+    stubRd(reply(200, imageDetail()), png(new TextEncoder().encode("<html>not a png</html>")));
+    const html = await heatmap(REQUEST_ID);
+    expect(html.status).toBe(502);
+    expect(await html.text()).not.toContain("not a png");
   });
 });
 

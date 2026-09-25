@@ -1,6 +1,6 @@
 # Faike — progress
 
-Last updated: 25 Sep 2026 (temporary upload route while RD's CORS excludes Faike)
+Last updated: 25 Sep 2026 (heat maps drawn from RD's data; Sign in removed)
 
 ## Stage 1 — Foundation ✅
 
@@ -71,7 +71,7 @@ Built against RD's current documentation (checked 24 Sep 2026: API Quickstart, A
 | 4 | NOT_APPLICABLE reason codes | **Answered for images and audio.** Image: `relevance`. Audio: `duration`, `detected` (dial tone or music), `cross-talk` (more than one speaker), `quality`, `language`. Video: none. Copy written for each (Stage 3b). |
 | 5 | Audio time segments | **Open.** Only in `aggregation.json` (`chunks`). RD documents the top-level keys only, so no moments are drawn. The structure can now be captured from one check (Stage 3b, part 3). |
 | 6 | Video regions / segments; picture and sound | **Partly.** Timelines only in `aggregation.json` (same status as 5). The separate sound result is now shown beside the overall verdict (read through `audioRequestId`; see part 3 for what is assumed). |
-| 7 | Image heat map / regions | **Partly, built.** Every usable heat map is shown, with a picker and recovery from expired links. Boxes only in `aggregation.json` (same status as 5). |
+| 7 | Image heat map / regions | **Partly, built.** Every usable heat map is drawn in the signal colours through Faike's own route, with a picker; detectors that finish later add theirs. RD documents no scale for the map's intensity. Boxes only in `aggregation.json` (same status as 5). |
 | 8 | Text span explainability | **Partly, built.** RD's pre-signed HTML page is offered in a sandboxed frame and a new tab; no span data is documented. |
 | 9 | Language detection | **Answered.** `metadata.languages`, lower-case names (English, Spanish and Portuguese named as examples). |
 | 10 | Formats and limits | **Answered.** Images jpg/jpeg/png/gif/webp ≤ 50 MB; audio mp3/wav/m4a/aac/ogg/flac/alac ≤ 20 MB; video mp4/mov ≤ 250 MB and 30 min; text txt ≤ 900 KB. Matches §9.3. |
@@ -177,7 +177,7 @@ The remaining mock visualisation is replaced by what RD returns. Where RD return
 - [x] **Image heat maps:**
   - every usable heat map (non-ensemble detectors that flagged the image, only with a suspicious or artificial verdict), strongest first
   - the existing original / heat map / overlay control, plus a "Heat map from" picker when there is more than one, and "From {detector}." when there is one
-  - **expired links:** if the heat map fails to load, Faike re-reads the check's detail by request id and swaps in the fresh links. It never re-runs the check or changes the verdict. After two unsuccessful refreshes, a note says the heat map couldn't be loaded and the result is unchanged.
+  - **expired links:** if the heat map fails to load, Faike re-reads the check's detail by request id and swaps in the fresh links. It never re-runs the check or changes the verdict. After two unsuccessful refreshes, a note says the heat map couldn't be loaded and the result is unchanged. (Replaced by the heat map route below.)
 - [x] **Video with sound:** when RD analysed the sound separately (`showAudioResult` not false, plus a valid `audioRequestId`), the server reads that result too, and the details show a "Sound check" card beside the overall result, without repeating the overall verdict. If the sound result can't be read, the overall result still stands.
 - [x] **Text explanation:** when RD returns `explainabilityUrl` for text, the details offer "Detailed explanation". It loads in an iframe with `sandbox=""` (no scripts, forms or navigation), with a link to open it in a new tab, and the Faike summary stays around it.
   - The page is never copied into Faike's HTML and there is no `dangerouslySetInnerHTML`.
@@ -220,6 +220,52 @@ The remaining mock visualisation is replaced by what RD returns. Where RD return
 - Detector names shown by the owner's instruction; `RD_MODEL_NAMES_PUBLIC = false` shows "Model 1", "Heat map 1"… instead.
 - The sound card reads "Sound check — Checked separately, beside the overall result." so it never reads as a second overall verdict.
 
+## Heat maps drawn from RD's data; Sign in removed ✅
+
+**What was wrong.** With image uploads working, the owner found no visible heat map. RD's heat map is a white mask whose transparency says how strongly one detector reacted. In the live map (24 Sep 2026), 99.6% of pixels were almost clear and most marked pixels were under 7% intensity. Drawn as-is at 70% over a bright photo it was practically invisible, and the details opened on "Original".
+
+**Built.**
+- [x] **Heat map route:** `GET /api/scans/{requestId}/heatmap?model={name}`.
+  - Each request re-reads the media detail and takes that detector's current link, so RD's 15-minute expiry no longer matters.
+  - Only a heat map RD marks as usable is served (non-ensemble `FAKE` detector, suspicious or artificial result).
+  - The PNG is fetched server-side without the RD key: no redirects, 8 s timeout, 4 MB cap, PNG signature checked.
+  - It is returned from Faike's own origin with `no-store`, `nosniff` and `Cross-Origin-Resource-Policy: same-origin`.
+  - RD's storage links no longer reach the browser: the status response carries Faike's own address for each heat map.
+- [x] **Drawn in the signal colours** (`src/lib/scan/heatmap.ts`, `HeatmapLayer`).
+  - The browser reads the PNG's pixels and scales the map to its own strongest point (99.9th percentile of marked pixels).
+  - Haze below 12% of that point is left clear.
+  - Colours blend from `--signal-some` to `--signal-strong`, read from the tokens.
+  - Values are in `src/config/heatmap.ts` and were tuned on the live map.
+  - "Overlay strength" sets the colour's opacity and fades the photo underneath to grey by the same amount, so the colours read on any photo.
+- [x] **Details open on the heat map** when there is one ("Show me where"), on desktop and in the mobile inline details. The person can switch to Original or Side by side.
+- [x] **Detectors that finish later.** While the details are open, a finished check with detectors still running is re-read after 0, 4, 8 and 15 s, stopping when none is running (`LATER_DETAIL_WAITS_MS`). Their rows and heat maps are added; the verdict and score never change.
+- [x] **Plain notes instead of an unmarked photo:**
+  - no heat map came back: "Faike didn't get a heat map for this photo, so no particular area is marked."
+  - still expected: "Some checks are still finishing. A heat map may appear here shortly."
+  - not loadable: "The heat map couldn't be loaded right now. The result is unchanged."
+  - blank: "This heat map doesn't mark any particular area."
+- [x] The caption now says what the colour means: "Deeper orange means a stronger reaction in that spot."
+- [x] **Sign in removed** from the header on desktop and mobile (owner, 25 Sep 2026). The `/sign-in` placeholder page stays, unlinked. The mobile home header now shows the logo only.
+
+**Verified.**
+- Lint, typecheck, unit tests and build are clean. New tests cover:
+  - the heat map route: fresh link each time, key never sent, 404s, expired link, non-PNG body
+  - the recolouring (RD-style mask, stray pixels, greyscale maps, blank maps)
+  - later detail: rows and heat maps taken, verdict kept, reads stop, single run
+- In Chromium against a local RD stand-in serving **RD's real heat map from the live check**, 18/18 checks:
+  - details open on the heat map, which is drawn in `--signal-strong` (17,236 marked pixels)
+  - an expired storage link (403) recovered through a second read
+  - a detector finishing later added its heat map to the picker, strongest first, and its row
+  - overlay strength and grey move together; Original shows the photo alone
+  - no RD storage link or account id reached the browser; storage never received the key
+  - the "no heat map" and "blank heat map" notes
+  - the mobile inline view, with no sideways scroll
+  - the header without Sign in on desktop and mobile
+- The `/mock` demo photos still draw their sample heat map.
+- Not verified: a heat map from RD's live storage through the new route on the deployment. This needs one real check after merge.
+
+**Decisions:** see architecture decisions 62–65.
+
 ## Temporary upload route (while RD's CORS excludes Faike) ✅
 
 **Why.** RD's upload server grants browser uploads only to `https://app.realitydefender.ai`. Every upload from `faike.vercel.app` failed at the browser's CORS check.
@@ -250,7 +296,7 @@ The remaining mock visualisation is replaced by what RD returns. Where RD return
 - [ ] **Ask RD to allow Faike's origins** (production and custom domains, Vercel previews, `http://localhost:3000`), then switch off the temporary upload route and check each media type and a social link on the deployment.
 - [ ] Until then: test a large video through the upload route (Vercel's 120-second limit and undocumented size limit).
 - [ ] Real MP4 and MOV samples; the bundled sample video is WebM, which RD does not accept (it is used only by the mock).
-- [ ] Heat map presentation: RD's greyscale mask is faint over bright photos. Recolouring it needs CORS on RD's image storage or a server relay; design decision.
+- [ ] Heat map drawing: confirm the thresholds in `src/config/heatmap.ts` on more real maps, and ask RD what the map's intensity means; design review of the grey-photo treatment.
 - [ ] Feedback: RD needs a label (`REAL`, `SYNTHETIC`, `MANIPULATED`, `UNKNOWN`) and a category (`FALSE_POSITIVE`, `FALSE_NEGATIVE`, `CONFIRMATION`, `OTHER`); mapping Faike's Yes / No / Not sure is a product decision. Answers are kept in the tab for now. RD's feedback response includes the account holder's name and email, which must never be passed on.
 - [ ] Map `aggregation.json` once its structure is confirmed (video timelines, audio moments, image boxes); see part 3.
 - [ ] Confirm on a real check: the sound result of a video via `audioRequestId`, and whether RD's explanation page can be framed.
@@ -319,7 +365,10 @@ Share format · retention period · signed-out history · status-chip copy for a
 | Missing RD status | Treated as still processing; the client's polling deadline will bound it | Derived |
 | Heat maps | Only with a suspicious or artificial verdict, so a model's flags never contradict the ensemble | CLAUDE.md rule |
 | Several heat maps | "Heat map from" picker beside the overlay control, strongest first | Derived, needs design review |
-| Expired heat map | Re-read the detail by request id, at most twice, then "The heat map couldn't be loaded right now. The result is unchanged." | Derived |
+| Heat map drawing | RD's mask scaled to its own strongest point, drawn from `--signal-some` to `--signal-strong`; photo fades to grey with the overlay | Derived from live data, needs design review |
+| Heat map first | "Show me where" opens photo details on the heat map when there is one | Derived |
+| No heat map | Plain notes for none, still expected, not loadable and blank | Derived |
+| Sign in | Removed from the header until accounts exist; placeholder page kept, unlinked | Owner decision |
 | Sound of a video | "Sound check" card with its own label; the overall verdict is not repeated | Derived, needs design review |
 | Text explanation | "Detailed explanation" card: sandboxed frame plus "Open the explanation in a new tab" | Derived, needs design review |
 | Video timeline, audio moments | Not drawn until RD's `aggregation.json` structure is confirmed | CLAUDE.md rule (no guessed fields) |

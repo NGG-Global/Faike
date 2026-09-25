@@ -19,3 +19,11 @@ export const POLLING = {
 } as const;
 
 export type PollingConfig = { readonly [K in keyof typeof POLLING]: number };
+
+/**
+ * Detectors can finish after the overall result (a live image check had four
+ * still running). While the details are open, the finished check is read
+ * again after these waits, stopping as soon as none is running. The verdict
+ * never changes; the reads fill in their rows and any heat maps.
+ */
+export const LATER_DETAIL_WAITS_MS = [0, 4_000, 8_000, 15_000] as const;

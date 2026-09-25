@@ -1,7 +1,8 @@
+import { LATER_DETAIL_WAITS_MS } from "@/config/polling";
 import { getScanStatus, presignUpload, putFile, submitSocialLink } from "./api-client";
 import type { Draft, InputSummary, MediaRef, ScanJob, ScanStage } from "./job";
 import { pollScan } from "./poll";
-import { resultFromAnalysis, withVisuals } from "./result";
+import { resultFromAnalysis, withLaterDetail } from "./result";
 import type { ScanService } from "./service";
 import { scanStore } from "./store";
 
@@ -142,6 +143,31 @@ async function analyse(id: string) {
   }
 }
 
+const settling = new Map<string, Promise<boolean>>();
+
+/**
+ * Re-reads a finished check while any detector is still running, after the
+ * waits in LATER_DETAIL_WAITS_MS, and takes their later rows and heat maps
+ * (withLaterDetail). Stops when none is running, the check is gone or the
+ * waits are used up. A failed read is skipped; the check never fails.
+ */
+async function settle(id: string): Promise<boolean> {
+  let changed = false;
+  for (const wait of LATER_DETAIL_WAITS_MS) {
+    if (wait) await new Promise((resolve) => setTimeout(resolve, wait));
+    const job = scanStore.getJob(id);
+    if (!job?.requestId || job.stage.name !== "done" || !job.stage.result.models.some((model) => model.pending)) break;
+    const fresh = await getScanStatus(job.requestId, new AbortController().signal);
+    if (!fresh.ok || fresh.data.state !== "complete") continue;
+    const before = job.stage.result;
+    const result = withLaterDetail(before, fresh.data.analysis);
+    if (JSON.stringify(result) === JSON.stringify(before)) continue;
+    scanStore.updateJob(id, (current) => (current.stage.name === "done" ? { ...current, stage: { name: "done", result } } : current));
+    changed = true;
+  }
+  return changed;
+}
+
 function releaseMedia(job: ScanJob | undefined) {
   if (job?.media && !job.media.persistent) URL.revokeObjectURL(job.media.src);
 }
@@ -213,18 +239,14 @@ export const liveScanService: ScanService & { abortInProgress(): void } = {
     return checks.has(id);
   },
 
-  /** Resolves true only when fresh links replaced the old ones; the verdict is never touched. */
-  async refresh(id) {
-    const job = scanStore.getJob(id);
-    if (!job?.requestId || job.stage.name !== "done") return false;
-    const fresh = await getScanStatus(job.requestId, new AbortController().signal);
-    if (!fresh.ok || fresh.data.state !== "complete") return false;
-    const { analysis } = fresh.data;
-    const before = JSON.stringify(job.stage.result.heatmaps ?? []);
-    const result = withVisuals(job.stage.result, analysis);
-    if (JSON.stringify(result.heatmaps ?? []) === before) return false;
-    scanStore.updateJob(id, (current) => (current.stage.name === "done" ? { ...current, stage: { name: "done", result } } : current));
-    return true;
+  /** One settling run per check at a time; resolves true when later detail arrived. The verdict is never touched. */
+  refresh(id) {
+    let run = settling.get(id);
+    if (!run) {
+      run = settle(id).finally(() => settling.delete(id));
+      settling.set(id, run);
+    }
+    return run;
   },
 
   async sendFeedback(id, answer) {

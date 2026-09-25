@@ -371,3 +371,12 @@ export function homeIntro(capabilities: Capabilities = CAPABILITIES): string {
   const list = capitalise(joinList(kinds, "or"));
   return `${list ? `${list}. ` : ""}Faike checks for signs of AI and tells you what it found, in plain words.`;
 }
+
+/** Photo details: the heat map caption (HANDOFF §7.5: where, not why) and its notes. */
+export const HEATMAP_COPY = {
+  caption: "The heat map shows where signs of AI were picked up, not why. Deeper orange means a stronger reaction in that spot.",
+  none: "Faike didn't get a heat map for this photo, so no particular area is marked.",
+  pending: "Some checks are still finishing. A heat map may appear here shortly.",
+  failed: "The heat map couldn't be loaded right now. The result is unchanged.",
+  empty: "This heat map doesn't mark any particular area.",
+} as const;

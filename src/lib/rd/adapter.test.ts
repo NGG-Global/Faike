@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ScanStatusResponse } from "@/lib/scan/api";
-import { toScanStatus } from "./adapter";
+import { heatmapSources, toScanStatus } from "./adapter";
 import { parseMediaDetail } from "./parse";
 import { audioNotApplicableDetail, HEATMAP_URL, imageDetail, liveImageDetail, REQUEST_ID, socialDownloadingDetail } from "./rd-responses.fixture";
 
@@ -138,8 +138,16 @@ describe("toScanStatus: analysis details", () => {
     ]);
   });
 
-  it("keeps heat maps only from non-ensemble models that flagged the image", () => {
-    expect(analysisOf(imageDetail()).heatmaps).toEqual([{ model: "mock-img-a", url: HEATMAP_URL }]);
+  it("keeps heat maps only from non-ensemble models that flagged the image, as Faike's own addresses", () => {
+    expect(analysisOf(imageDetail()).heatmaps).toEqual([{ model: "mock-img-a", url: `/api/scans/${REQUEST_ID}/heatmap?model=mock-img-a` }]);
+    expect(JSON.stringify(analysisOf(imageDetail()))).not.toContain(HEATMAP_URL);
+  });
+
+  it("finds the current storage link of each usable heat map for the heat map route", () => {
+    expect(heatmapSources(parseMediaDetail(imageDetail()))).toEqual([{ model: "mock-img-a", url: HEATMAP_URL }]);
+    expect(heatmapSources(parseMediaDetail(imageDetail({ overallStatus: "AUTHENTIC", resultsSummary: { status: "AUTHENTIC" } })))).toEqual([]);
+    expect(heatmapSources(parseMediaDetail(imageDetail({ mediaType: "VIDEO" })))).toEqual([]);
+    expect(heatmapSources(parseMediaDetail(imageDetail({ overallStatus: "ANALYZING", resultsSummary: undefined })))).toEqual([]);
   });
 
   it("shows no heat map when the ensemble found the image authentic, or for other media", () => {
@@ -155,6 +163,7 @@ describe("toScanStatus: analysis details", () => {
       "holiday-photo-of-anna",
       "original.jpg",
       "aggregation.json",
+      "mock-bucket",
       "rd-file-name",
       "releaseVersion",
     ]) {

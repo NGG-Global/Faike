@@ -3,13 +3,14 @@ import type { MediaType, ModelResult, Verdict } from "./types";
 /*
  * Contract of Faike's scan Route Handlers (src/app/api/scans). These are
  * the only shapes the browser receives; Reality Defender's own responses
- * never leave the server. Safe to import from client code (types and
- * constants only, no secrets).
+ * never leave the server. Safe to import from client code (types,
+ * constants and path helpers only, no secrets).
  *
  *   POST /api/scans/presign      PresignRequest → PresignResponse
  *   POST /api/scans/social       SocialRequest  → SocialResponse
  *   GET  /api/scans/{requestId}  → ScanStatusResponse
  *   GET  /api/scans/{requestId}/explainability → 302 to a fresh RD explanation page (text)
+ *   GET  /api/scans/{requestId}/heatmap?model=… → the detector's heat map PNG, read fresh from RD (image)
  *
  * Every failure is an ApiErrorBody with one of the codes below.
  */
@@ -72,8 +73,9 @@ export interface ScanAnalysis {
   models: ModelResult[];
   /**
    * Image heat maps from non-ensemble models that flagged the image, only
-   * when the verdict is suspicious or artificial. Pre-signed URLs that RD
-   * says expire after 15 minutes; fetch the status again for fresh ones.
+   * when the verdict is suspicious or artificial. `url` is Faike's own
+   * address (heatmapPath), which always serves the current PNG; RD's
+   * expiring storage links never reach the browser.
    */
   heatmaps?: { model: string; url: string }[];
   /** Text: RD returned an explanation page; the browser opens it through GET /api/scans/{requestId}/explainability. */
@@ -102,4 +104,9 @@ export type ApiErrorCode = (typeof API_ERROR_CODES)[number];
 
 export interface ApiErrorBody {
   error: { code: ApiErrorCode; message: string };
+}
+
+/** Faike's same-origin address for one detector's heat map (GET /api/scans/{requestId}/heatmap). */
+export function heatmapPath(requestId: string, model: string): string {
+  return `/api/scans/${encodeURIComponent(requestId)}/heatmap?model=${encodeURIComponent(model)}`;
 }
