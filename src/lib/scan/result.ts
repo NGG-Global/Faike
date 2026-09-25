@@ -49,17 +49,17 @@ export function resultFromAnalysis(args: {
   if (analysis.hasExplainability) result.hasExplainability = true;
   // RD's separate check of a video's sound, beside (never instead of) the overall verdict.
   if (analysis.sound) result.partial = { sound: analysis.sound.verdict };
-  return withVisuals(result, analysis);
+  return withLaterDetail(result, analysis);
 }
 
 /**
- * Replaces the expiring visual links (heat maps) with fresh ones from a new
- * read of the same request, leaving the verdict and everything else as it
- * was. Used when a pre-signed link has expired.
+ * Takes the secondary detail from a later read of the same request: the
+ * detectors' rows (some finish after the overall result) and the heat maps
+ * they produced. The verdict, score and everything else stay as they were.
  */
-export function withVisuals(result: ScanResult, analysis: ScanAnalysis): ScanResult {
+export function withLaterDetail(result: ScanResult, analysis: ScanAnalysis): ScanResult {
   const heatmaps = orderedHeatmaps(analysis);
-  const next: ScanResult = { ...result };
+  const next: ScanResult = { ...result, models: analysis.models };
   if (heatmaps.length) next.heatmaps = heatmaps;
   else delete next.heatmaps;
   return next;

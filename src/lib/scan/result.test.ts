@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ScanAnalysis } from "./api";
 import type { InputSummary } from "./job";
-import { resultFromAnalysis, withVisuals } from "./result";
+import { resultFromAnalysis, withLaterDetail } from "./result";
 
 const input: InputSummary = {
   kind: "file",
@@ -81,11 +81,20 @@ describe("secondary detail", () => {
     expect(result).toMatchObject({ verdict: "suspicious", partial: { sound: "artificial" }, hasExplainability: true });
   });
 
-  it("replaces only the expiring links when fresh ones arrive", () => {
-    const result = resultFromAnalysis({ scanId: "abc", input, analysis, checkedAt: "2026-09-24T23:03:00.000Z" });
-    const refreshed = withVisuals(result, { ...analysis, verdict: "authentic", heatmaps: [{ model: "mock-a", url: "https://mock.example/a2.png" }] });
-    expect(refreshed.heatmaps).toEqual([{ label: "mock-a", url: "https://mock.example/a2.png" }]);
-    expect(refreshed.verdict).toBe("artificial");
-    expect(withVisuals(result, { ...analysis, heatmaps: undefined })).not.toHaveProperty("heatmaps");
+  it("takes later detector rows and heat maps, never a new verdict or score", () => {
+    const early = resultFromAnalysis({
+      scanId: "abc",
+      input,
+      analysis: { ...analysis, models: [{ name: "mock-a", pending: true }], heatmaps: undefined },
+      checkedAt: "2026-09-24T23:03:00.000Z",
+    });
+    expect(early).not.toHaveProperty("heatmaps");
+    const later = withLaterDetail(early, { ...analysis, verdict: "authentic", ensembleScore: 0.1 });
+    expect(later.models).toEqual(analysis.models);
+    expect(later.heatmaps?.map((heatmap) => heatmap.label)).toEqual(["mock-b", "mock-a"]);
+    expect(later.verdict).toBe("artificial");
+    expect(later.ensembleScore).toBe(0.92);
+    expect(later.checkedAt).toBe(early.checkedAt);
+    expect(withLaterDetail(later, { ...analysis, heatmaps: undefined })).not.toHaveProperty("heatmaps");
   });
 });

@@ -1,11 +1,11 @@
 "use client";
 
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useMediaPlayback } from "@/hooks/useMediaPlayback";
 import { scanService } from "@/lib/scan/client";
 import { cx } from "@/lib/cx";
 import { formatDuration, plural } from "@/lib/format";
-import { flaggedDescription, LANE_LABEL, whyText } from "@/lib/scan/copy";
+import { flaggedDescription, HEATMAP_COPY, LANE_LABEL, whyText } from "@/lib/scan/copy";
 import { flaggedHeading, subjectName } from "@/lib/scan/facts";
 import type { ScanJob } from "@/lib/scan/job";
 import type { Region, ScanResult } from "@/lib/scan/types";
@@ -16,6 +16,7 @@ import { ModelResults, TechnicalDetails } from "./AdvancedDetails";
 import { FileDetails, LaneSummaryCard, SourceCard } from "./AsideCards";
 import { AudioEvidence } from "./AudioEvidence";
 import { FlaggedList, type FlaggedItem } from "./FlaggedList";
+import type { HeatmapStatus } from "./HeatmapLayer";
 import { ImageEvidence, type ImageView } from "./ImageEvidence";
 import { spanElementId, TextEvidence } from "./TextEvidence";
 import { TextExplanation } from "./TextExplanation";
@@ -47,6 +48,7 @@ export function detailsTitle(result: ScanResult): string {
 export function DetailsContent({ job, result, inline = false }: { job: ScanJob; result: ScanResult; inline?: boolean }) {
   const level: HeadingLevel = inline ? 3 : 2;
   const models = result.models.length;
+  const settled = useLaterDetail(job.id);
 
   return (
     <div className="flex flex-col gap-5">
@@ -57,7 +59,7 @@ export function DetailsContent({ job, result, inline = false }: { job: ScanJob; 
       ) : null}
       {result.mediaType === "audio" ? <AudioDetails job={job} result={result} level={level} /> : null}
       {result.mediaType === "video" ? <VideoDetails job={job} result={result} level={level} /> : null}
-      {result.mediaType === "image" ? <ImageDetails job={job} result={result} level={level} /> : null}
+      {result.mediaType === "image" ? <ImageDetails job={job} result={result} level={level} settled={settled} /> : null}
       {result.mediaType === "text" ? <TextDetails job={job} result={result} level={level} /> : null}
       <Accordion
         headingLevel={level}
@@ -87,6 +89,29 @@ export function DetailsContent({ job, result, inline = false }: { job: ScanJob; 
       <FeedbackButtons job={job} withNotSure />
     </div>
   );
+}
+
+/**
+ * Detectors can finish after the overall result. While the details are
+ * open, the check is re-read a few times until they do (scanService.refresh),
+ * which fills in their rows and any heat maps they produce. The verdict never
+ * changes. Resolves to true once that has finished.
+ */
+function useLaterDetail(id: string): boolean {
+  const [settledFor, setSettledFor] = useState<string | null>(null);
+  useEffect(() => {
+    let current = true;
+    void scanService
+      .refresh(id)
+      .catch(() => false)
+      .then(() => {
+        if (current) setSettledFor(id);
+      });
+    return () => {
+      current = false;
+    };
+  }, [id]);
+  return settledFor === id;
 }
 
 function Layout({ evidence, list, aside }: { evidence: ReactNode; list?: ReactNode; aside: ReactNode }) {
@@ -218,31 +243,21 @@ function position(region: Region): string {
   return vertical === "Middle" && horizontal === "centre" ? "Centre" : `${vertical} ${horizontal}`;
 }
 
-/** At most this many fresh reads of the check when a heat map link has expired. */
-const MAX_HEATMAP_REFRESHES = 2;
-
-function ImageDetails({ job, result, level }: { job: ScanJob; result: ScanResult; level: HeadingLevel }) {
-  const [view, setView] = useState<ImageView>("original");
+function ImageDetails({ job, result, level, settled }: { job: ScanJob; result: ScanResult; level: HeadingLevel; settled: boolean }) {
+  const [choice, setChoice] = useState<ImageView | null>(null);
   const [overlay, setOverlay] = useState(70);
   const [zoom, setZoom] = useState<Region | null>(null);
   const [heatmapIndex, setHeatmapIndex] = useState(0);
-  const [refreshes, setRefreshes] = useState(0);
-  const [heatmapFailed, setHeatmapFailed] = useState(false);
+  const [statuses, setStatuses] = useState<Record<string, HeatmapStatus>>({});
   const evidenceRef = useRef<HTMLDivElement>(null);
-  const heatmaps = heatmapFailed ? undefined : result.heatmaps;
 
-  // An expired pre-signed link: read the check again for fresh links. The
-  // result itself stays as it is; after repeated failures the heat map is
-  // simply left out.
-  function onHeatmapError() {
-    if (refreshes >= MAX_HEATMAP_REFRESHES) return setHeatmapFailed(true);
-    setRefreshes((count) => count + 1);
-    void scanService.refresh(job.id).then((changed) => {
-      if (!changed) setHeatmapFailed(true);
-    });
-  }
+  // A heat map that failed to load or marks nothing is left out of the picker.
+  const heatmaps = (result.heatmaps ?? []).filter((heatmap) => statuses[heatmap.url] !== "failed" && statuses[heatmap.url] !== "empty");
   const regions = result.regions ?? [];
   const src = job.media?.src;
+  // "Show me where" opens on the heat map when there is one (the person can switch back).
+  const view: ImageView = choice ?? (heatmaps.length ? "heatmap" : "original");
+  const note = heatmapNote(result, heatmaps.length, statuses, settled);
 
   const items: FlaggedItem[] = regions.map((region) => ({
     id: region.id,
@@ -254,7 +269,7 @@ function ImageDetails({ job, result, level }: { job: ScanJob; result: ScanResult
       ariaLabel: `Show area ${region.id}, ${position(region).toLowerCase()}`,
       disabled: !src,
       onClick: () => {
-        setView("original");
+        setChoice("original");
         setZoom(region);
         evidenceRef.current?.scrollIntoView({ block: "nearest" });
       },
@@ -269,14 +284,14 @@ function ImageDetails({ job, result, level }: { job: ScanJob; result: ScanResult
           {src ? (
             <ImageEvidence
               src={src}
-              heatmaps={heatmaps}
+              heatmaps={heatmaps.length ? heatmaps : undefined}
               heatmapIndex={heatmapIndex}
               onHeatmapIndexChange={setHeatmapIndex}
-              onHeatmapError={onHeatmapError}
+              onHeatmapStatus={(url, status) => setStatuses((known) => (known[url] === status ? known : { ...known, [url]: status }))}
               regions={regions}
               view={view}
               onViewChange={(next) => {
-                setView(next);
+                setChoice(next);
                 setZoom(null);
               }}
               overlay={overlay}
@@ -287,9 +302,7 @@ function ImageDetails({ job, result, level }: { job: ScanJob; result: ScanResult
           ) : (
             <MediaUnavailable kind={job.input.kind} />
           )}
-          {src && heatmapFailed ? (
-            <p className="mt-2 text-small text-muted">The heat map couldn&apos;t be loaded right now. The result is unchanged.</p>
-          ) : null}
+          {src && note ? <p className="mt-2 text-small text-muted">{note}</p> : null}
         </div>
       }
       list={
@@ -310,6 +323,19 @@ function ImageDetails({ job, result, level }: { job: ScanJob; result: ScanResult
       }
     />
   );
+}
+
+/**
+ * What to say when a photo that "Show me where" leads to has no heat map to
+ * show: none came back, one is still expected, or the ones that came back
+ * could not be drawn. Nothing when there is something to show.
+ */
+function heatmapNote(result: ScanResult, drawable: number, statuses: Record<string, HeatmapStatus>, settled: boolean): string | undefined {
+  if (drawable || result.regions?.length) return undefined;
+  const loaded = Object.values(statuses);
+  if (result.heatmaps?.length) return loaded.includes("failed") ? HEATMAP_COPY.failed : loaded.length ? HEATMAP_COPY.empty : undefined;
+  if (result.verdict !== "suspicious" && result.verdict !== "artificial") return undefined;
+  return !settled && result.models.some((model) => model.pending) ? HEATMAP_COPY.pending : HEATMAP_COPY.none;
 }
 
 function TextDetails({ job, result, level }: { job: ScanJob; result: ScanResult; level: HeadingLevel }) {

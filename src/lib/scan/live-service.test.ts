@@ -350,45 +350,83 @@ describe("live checks", () => {
   });
 });
 
-describe("expired visual links", () => {
-  const withHeatmap = (id: string, url: string): ScanStatusResponse => ({
+describe("detail that arrives after the result", () => {
+  const read = (id: string, running: boolean): ScanStatusResponse => ({
     requestId: id,
     state: "complete",
     analysis: {
       mediaType: "image",
       verdict: "artificial",
       ensembleScore: 0.92,
-      models: [{ name: "mock-a", verdict: "artificial", score: 0.9 }],
-      heatmaps: [{ model: "mock-a", url }],
+      models: running
+        ? [{ name: "mock-a", verdict: "artificial", score: 0.9 }, { name: "mock-b", pending: true }]
+        : [
+            { name: "mock-a", verdict: "artificial", score: 0.9 },
+            { name: "mock-b", verdict: "artificial", score: 0.95 },
+          ],
+      heatmaps: running
+        ? [{ model: "mock-a", url: `/api/scans/${id}/heatmap?model=mock-a` }]
+        : [
+            { model: "mock-a", url: `/api/scans/${id}/heatmap?model=mock-a` },
+            { model: "mock-b", url: `/api/scans/${id}/heatmap?model=mock-b` },
+          ],
     },
   });
 
-  it("fetches fresh links for the same request and changes nothing else", async () => {
-    let signature = "old";
-    statusFor = (id) => withHeatmap(id, `https://mock-bucket.example/h.png?sig=${signature}`);
+  it("re-reads while detectors are still running and takes their rows and heat maps", async () => {
+    let running = true;
+    statusFor = (id) => read(id, running);
     const { scanService, scanStore } = await load();
     const id = scanService.start(imageInput());
     await vi.advanceTimersByTimeAsync(5_000);
-    const before = scanStore.getJob(id)?.stage;
-    expect(before?.name === "done" && before.result.heatmaps).toEqual([{ label: "mock-a", url: "https://mock-bucket.example/h.png?sig=old" }]);
+    const before = statusCalls.length;
 
-    signature = "fresh";
-    await expect(scanService.refresh(id)).resolves.toBe(true);
-    const after = scanStore.getJob(id)?.stage;
-    expect(after?.name === "done" && after.result.heatmaps).toEqual([{ label: "mock-a", url: "https://mock-bucket.example/h.png?sig=fresh" }]);
-    expect(after?.name === "done" && after.result.verdict).toBe("artificial");
-    expect(statusCalls.at(-1)).toBe("req-1");
+    const refreshed = scanService.refresh(id);
+    await vi.advanceTimersByTimeAsync(0);
+    running = false;
+    await vi.advanceTimersByTimeAsync(15_000);
+    await expect(refreshed).resolves.toBe(true);
+
+    const stage = scanStore.getJob(id)?.stage;
+    expect(stage?.name === "done" && stage.result.models.every((model) => !model.pending)).toBe(true);
+    expect(stage?.name === "done" && stage.result.heatmaps?.map((heatmap) => heatmap.label)).toEqual(["mock-b", "mock-a"]);
+    expect(stage?.name === "done" && stage.result.verdict).toBe("artificial");
+    // Two reads: one still running, one settled; then it stops.
+    expect(statusCalls.length - before).toBe(2);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(statusCalls.length - before).toBe(2);
   });
 
-  it("never fails the check when a refresh brings nothing new or cannot be read", async () => {
-    statusFor = (id) => withHeatmap(id, "https://mock-bucket.example/h.png?sig=same");
+  it("reads nothing when no detector is running, and runs once however often it is asked", async () => {
+    statusFor = (id) => read(id, false);
+    const { scanService } = await load();
+    const id = scanService.start(imageInput());
+    await vi.advanceTimersByTimeAsync(5_000);
+    const before = statusCalls.length;
+    await expect(scanService.refresh(id)).resolves.toBe(false);
+    expect(statusCalls.length).toBe(before);
+
+    statusFor = (id) => read(id, true);
+    const other = scanService.start(imageInput());
+    await vi.advanceTimersByTimeAsync(5_000);
+    const reads = statusCalls.length;
+    const first = scanService.refresh(other);
+    const second = scanService.refresh(other);
+    expect(second).toBe(first);
+    await vi.advanceTimersByTimeAsync(30_000);
+    await first;
+    expect(statusCalls.length - reads).toBe(4); // every wait used, still running
+  });
+
+  it("never fails the check when a later read cannot be made", async () => {
+    statusFor = (id) => read(id, true);
     const { scanService, scanStore } = await load();
     const id = scanService.start(imageInput());
     await vi.advanceTimersByTimeAsync(5_000);
-
-    await expect(scanService.refresh(id)).resolves.toBe(false);
     statusFor = () => ({ error: "upstream_error", status: 502 });
-    await expect(scanService.refresh(id)).resolves.toBe(false);
+    const refreshed = scanService.refresh(id);
+    await vi.advanceTimersByTimeAsync(30_000);
+    await expect(refreshed).resolves.toBe(false);
     const stage = scanStore.getJob(id)?.stage;
     expect(stage?.name === "done" && stage.result.verdict).toBe("artificial");
   });

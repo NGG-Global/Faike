@@ -1,6 +1,6 @@
 import "server-only";
 import { RD_ENSEMBLE_MODEL_PATTERN, RD_LANGUAGE_CODES } from "@/config/rd";
-import type { ScanAnalysis, ScanStatusResponse } from "@/lib/scan/api";
+import { heatmapPath, type ScanAnalysis, type ScanStatusResponse } from "@/lib/scan/api";
 import { isMeterVerdict } from "@/lib/scan/meter";
 import type { MediaType, ModelResult } from "@/lib/scan/types";
 import type { RdMediaDetail, RdModelResult } from "./types";
@@ -63,20 +63,25 @@ export function toScanStatus(requestId: string, detail: RdMediaDetail, audio?: R
     };
   }
 
-  return { requestId, state: "complete", analysis: toAnalysis(status, mediaType, detail, audio) };
+  return { requestId, state: "complete", analysis: toAnalysis(requestId, status, mediaType, detail, audio) };
 }
 
-function toAnalysis(status: string, mediaType: MediaType | undefined, detail: RdMediaDetail, audio?: RdMediaDetail): ScanAnalysis {
+function toAnalysis(
+  requestId: string,
+  status: string,
+  mediaType: MediaType | undefined,
+  detail: RdMediaDetail,
+  audio?: RdMediaDetail,
+): ScanAnalysis {
   const verdict = verdictFromRd(status);
   const metadata = detail.resultsSummary?.metadata;
 
   const ensembleScore = isMeterVerdict(verdict) ? scoreFrom(metadata?.finalScore) : undefined;
   const language = metadata?.languages?.map(languageCode).find((code) => code !== undefined);
   const reasons = verdict === "not_applicable" ? metadata?.reasons?.map((reason) => reason.code) : undefined;
-  // A heat map shows where a model flagged the image, so it appears only
-  // when the ensemble itself found signs; it never contradicts the verdict.
-  const heatmaps =
-    mediaType === "image" && (verdict === "suspicious" || verdict === "artificial") ? usableHeatmaps(detail) : undefined;
+  // The browser gets Faike's own address for each heat map, never RD's
+  // storage link: GET /api/scans/{requestId}/heatmap reads a fresh one.
+  const heatmaps = heatmapSources(detail).map(({ model }) => ({ model, url: heatmapPath(requestId, model) }));
   // RD documents the explanation page for text only.
   const hasExplainability = mediaType === "text" && detail.explainabilityUrl !== undefined;
   // The sound check is secondary detail beside the overall verdict, never a replacement.
@@ -121,9 +126,14 @@ function toModel(model: RdModelResult): ModelResult[] {
 
 /**
  * RD: heat maps are usable only for non-ensemble image models whose status
- * is FAKE; other entries may be present but their links are invalid.
+ * is FAKE; other entries may be present but their links are invalid. A heat
+ * map shows where a model flagged the image, so Faike uses them only when
+ * the overall result itself found signs; they never contradict the verdict.
  */
-function usableHeatmaps(detail: RdMediaDetail): { model: string; url: string }[] {
+export function heatmapSources(detail: RdMediaDetail): { model: string; url: string }[] {
+  const status = finalStatus(detail);
+  const verdict = status ? verdictFromRd(status) : undefined;
+  if (detail.mediaType !== "IMAGE" || (verdict !== "suspicious" && verdict !== "artificial")) return [];
   const flagged = new Set(
     detail.models
       .filter((model) => model.status === "FAKE" && !RD_ENSEMBLE_MODEL_PATTERN.test(model.name))

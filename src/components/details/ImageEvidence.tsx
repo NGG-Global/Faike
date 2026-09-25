@@ -3,19 +3,22 @@
 import { useId } from "react";
 import { cx } from "@/lib/cx";
 import { RD_MODEL_NAMES_PUBLIC } from "@/config/rd";
+import { HEATMAP_COPY } from "@/lib/scan/copy";
 import { heatmapLabel } from "@/lib/scan/detectors";
 import type { Region } from "@/lib/scan/types";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { NumberBadge, SignalLegend } from "@/components/ui/Tags";
+import { HeatmapLayer, type HeatmapStatus } from "./HeatmapLayer";
 
 /*
  * Image evidence (HANDOFF §7.5, derived — first pass for design review).
  * Original / Side by side / Heat map. Heat maps are RD's, one per detector
  * that flagged the image; with several, a picker names the detector. They
- * are shown with an "Overlay strength" slider. A heat map that fails to
- * load (its pre-signed link expired) is reported through onHeatmapError so
- * the parent can fetch fresh links. Regions, when present, get rounded
- * outlines with numbered badges and can be zoomed to.
+ * are drawn in the signal colours (HeatmapLayer) with an "Overlay strength"
+ * slider, which also fades the photo underneath to grey so the colours
+ * read on any photo. Whether each heat map loaded is reported through
+ * onHeatmapStatus. Regions, when present, get rounded outlines with
+ * numbered badges and can be zoomed to.
  */
 
 export type ImageView = "original" | "side" | "heatmap";
@@ -25,7 +28,7 @@ export function ImageEvidence({
   heatmaps,
   heatmapIndex,
   onHeatmapIndexChange,
-  onHeatmapError,
+  onHeatmapStatus,
   regions,
   view,
   onViewChange,
@@ -38,7 +41,7 @@ export function ImageEvidence({
   heatmaps?: { label: string; url: string }[];
   heatmapIndex: number;
   onHeatmapIndexChange: (index: number) => void;
-  onHeatmapError: (url: string) => void;
+  onHeatmapStatus: (url: string, status: HeatmapStatus) => void;
   regions: Region[];
   view: ImageView;
   onViewChange: (view: ImageView) => void;
@@ -79,7 +82,7 @@ export function ImageEvidence({
             <figcaption className="mt-2 text-small font-semibold text-muted">Original</figcaption>
           </figure>
           <figure>
-            <Frame src={src} heatmapUrl={heatmapUrl} overlay={overlay} onHeatmapError={onHeatmapError} />
+            <Frame src={src} heatmapUrl={heatmapUrl} overlay={overlay} onHeatmapStatus={onHeatmapStatus} />
             <figcaption className="mt-2 text-small font-semibold text-muted">Heat map</figcaption>
           </figure>
         </div>
@@ -87,7 +90,7 @@ export function ImageEvidence({
         <Frame
           src={src}
           heatmapUrl={view === "heatmap" ? heatmapUrl : undefined}
-          onHeatmapError={onHeatmapError}
+          onHeatmapStatus={onHeatmapStatus}
           overlay={overlay}
           regions={view === "original" ? regions : []}
           zoom={view === "original" ? zoom : null}
@@ -98,7 +101,7 @@ export function ImageEvidence({
       {heatmaps && heatmap && view !== "original" ? (
         <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <p className="text-small text-muted">
-            The heat map shows where signs of AI were picked up, not why.
+            {HEATMAP_COPY.caption}
             {heatmaps.length === 1 && RD_MODEL_NAMES_PUBLIC ? ` From ${heatmap.label}.` : ""}
           </p>
           {heatmaps.length > 1 ? (
@@ -144,7 +147,7 @@ export function ImageEvidence({
 function Frame({
   src,
   heatmapUrl,
-  onHeatmapError,
+  onHeatmapStatus,
   overlay = 70,
   regions = [],
   zoom = null,
@@ -152,7 +155,7 @@ function Frame({
 }: {
   src: string;
   heatmapUrl?: string;
-  onHeatmapError?: (url: string) => void;
+  onHeatmapStatus?: (url: string, status: HeatmapStatus) => void;
   overlay?: number;
   regions?: Region[];
   zoom?: Region | null;
@@ -170,16 +173,14 @@ function Frame({
         style={{ transform: `translate(${tx * 100}%, ${ty * 100}%) scale(${scale})` }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element -- local or bundled preview */}
-        <img src={src} alt="The checked photo" className="block max-h-[70vh] max-w-full" />
+        <img
+          src={src}
+          alt="The checked photo"
+          className="block max-h-[70vh] max-w-full transition-[filter] duration-(--dur-base) ease-out"
+          style={heatmapUrl ? { filter: `grayscale(${overlay}%)` } : undefined}
+        />
         {heatmapUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element -- RD localisation image
-          <img
-            src={heatmapUrl}
-            alt=""
-            onError={() => onHeatmapError?.(heatmapUrl)}
-            className="pointer-events-none absolute inset-0 size-full"
-            style={{ opacity: overlay / 100 }}
-          />
+          <HeatmapLayer url={heatmapUrl} opacity={overlay / 100} onStatus={(status) => onHeatmapStatus?.(heatmapUrl, status)} />
         ) : null}
         {regions.map((region) => (
           <button
