@@ -75,6 +75,13 @@ describe("POST /api/scans/presign", () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
+  it("hands the browser RD's live upload address on Faike's own domain while the upload proxy is on", async () => {
+    const live = `https://api.prd.realitydefender.xyz/api/files/${REQUEST_ID}?token=eyJ.mock.token`;
+    stubRd(reply(200, { ...PRESIGN_RESPONSE, response: { signedUrl: live } }));
+    const { body } = await read(await presign(post("/api/scans/presign", file)));
+    expect(body).toEqual({ requestId: REQUEST_ID, uploadUrl: `/rd-upload/${REQUEST_ID}?token=eyJ.mock.token` });
+  });
+
   it("sends RD a random file name with the right extension, not the person's", async () => {
     const fetch = stubRd(reply(200, PRESIGN_RESPONSE));
     await presign(post("/api/scans/presign", file));

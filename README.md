@@ -32,7 +32,7 @@ Copy `.env.example` to `.env.local` and set the Reality Defender API key. Both v
 
 ## Mock data and configuration
 
-Every check you start (photo, audio, video, text file, pasted text or social link) is a real Reality Defender check through the routes under `/api/scans` (see `docs/architecture.md` §5), which need the variables above. The browser uploads files directly to Reality Defender, which works only for origins on RD's CORS allow-list (`progress.md`). Which kinds are offered is set in `src/config/capabilities.ts`; limits and formats in `src/config/media.ts`. Open `/mock` for links to every state and to every verdict for every media type; those links always use fixtures and bundled samples.
+Every check you start (photo, audio, video, text file, pasted text or social link) is a real Reality Defender check through the routes under `/api/scans` (see `docs/architecture.md` §5), which need the variables above. The browser uploads files to Reality Defender through a temporary same-origin route (`/rd-upload`, forwarded by a rewrite in `next.config.ts`), because RD's upload server does not yet allow Faike's origins; switch it off in `src/config/upload.ts` once it does (`progress.md`). Which kinds are offered is set in `src/config/capabilities.ts`; limits and formats in `src/config/media.ts`. Open `/mock` for links to every state and to every verdict for every media type; those links always use fixtures and bundled samples.
 
 ## Documentation
 

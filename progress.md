@@ -1,6 +1,6 @@
 # Faike — progress
 
-Last updated: 25 Sep 2026 (Stage 3b, result detail from real RD data)
+Last updated: 25 Sep 2026 (temporary upload route while RD's CORS excludes Faike)
 
 ## Stage 1 — Foundation ✅
 
@@ -82,7 +82,9 @@ Built against RD's current documentation (checked 24 Sep 2026: API Quickstart, A
 
 Image files now run for real: **presign → the browser PUTs the file straight to RD → poll Faike's own `GET /api/scans/{requestId}` → RD's result on the existing result and details screens.** Audio, video, text and links stay on the mock.
 
-**Blocker (status 25 Sep 2026).** You reported the real image flow working in production. From this environment, a browser-style preflight on a real upload URL still returns no `Access-Control-Allow-Origin` for `https://faike.vercel.app`, while `https://app.realitydefender.ai` gets one; to confirm: the origin you tested from, and whether RD has allow-listed Faike's addresses. Original finding: RD's upload endpoint only allows its own web app's origin. Browser preflights from `https://faike.vercel.app`, `http://localhost:3000` or any other origin get no `Access-Control-Allow-Origin` header, while `https://app.realitydefender.ai` does (checked 24 Sep 2026). Until RD adds Faike's origins, a real browser upload fails and the person sees "We couldn't connect" with Try again. Nothing in Faike can fix this within the agreed architecture. Options:
+**Workaround in place (25 Sep 2026, later).** Confirmed again on the deployment: Faike's presign route works, but RD's upload server answers the browser's CORS check with no permission for `https://faike.vercel.app`, so the upload is blocked and the person sees "We couldn't connect". By the owner's decision, uploads now go through a temporary same-origin route (`/rd-upload/{id}?token=…`), which a rewrite forwards unchanged to RD. See "Temporary upload route" below. RD is also being asked to allow Faike's addresses; once it does, switch the route off.
+
+**Earlier status (25 Sep 2026).** You reported the real image flow working in production. From this environment, a browser-style preflight on a real upload URL still returns no `Access-Control-Allow-Origin` for `https://faike.vercel.app`, while `https://app.realitydefender.ai` gets one; to confirm: the origin you tested from, and whether RD has allow-listed Faike's addresses. Original finding: RD's upload endpoint only allows its own web app's origin. Browser preflights from `https://faike.vercel.app`, `http://localhost:3000` or any other origin get no `Access-Control-Allow-Origin` header, while `https://app.realitydefender.ai` does (checked 24 Sep 2026). Until RD adds Faike's origins, a real browser upload fails and the person sees "We couldn't connect" with Try again. Nothing in Faike can fix this within the agreed architecture. Options:
 1. **Recommended:** ask RD to allow Faike's origins: production domain(s), Vercel preview domains, and `http://localhost:3000` for development.
 2. Relay small files through a Route Handler to RD. Contradicts the "no media through serverless functions" decision, and Vercel's request-body limit (about 4.5 MB; verify) caps it.
 3. Upload to storage Faike controls, then server-to-server to RD. Adds a dependency and temporary re-hosting of the person's file (conflicts with the privacy rule).
@@ -218,10 +220,35 @@ The remaining mock visualisation is replaced by what RD returns. Where RD return
 - Detector names shown by the owner's instruction; `RD_MODEL_NAMES_PUBLIC = false` shows "Model 1", "Heat map 1"… instead.
 - The sound card reads "Sound check — Checked separately, beside the overall result." so it never reads as a second overall verdict.
 
+## Temporary upload route (while RD's CORS excludes Faike) ✅
+
+**Why.** RD's upload server grants browser uploads only to `https://app.realitydefender.ai`. Every upload from `faike.vercel.app` failed at the browser's CORS check.
+
+**Built.**
+- [x] `src/config/upload.ts`: one switch (`RD_UPLOAD_PROXY.enabled`), the same-origin path (`/rd-upload`) and the only destination (`https://api.prd.realitydefender.xyz/api/files`).
+- [x] `next.config.ts`: an external rewrite, `/rd-upload/{id}` → RD's upload endpoint. It accepts only a plain id (`[A-Za-z0-9_-]{1,128}`); any other path is a 404.
+- [x] `src/lib/rd/upload.ts` (`browserUploadUrl`): the presign route converts RD's signed URL to the same URL on Faike's domain, but only for that exact destination with a plain id. Anything else (a changed RD address, the local stub) is passed through unchanged.
+- [x] The browser code is unchanged: it still PUTs with real progress, now to a same-origin address, so no CORS check applies.
+
+**How it behaves.**
+- **Vercel's network forwards the file**, not a Faike function, so the 4.5 MB function limit does not apply. The file is forwarded, never stored, and the RD key is not involved.
+- **Limit: 120 seconds per upload** (Vercel's limit for forwarded requests). A large video on a slow connection can exceed it.
+- **Size limit: not documented** by Vercel for forwarded requests. Large files need a test.
+- **Logs:** RD's short-lived upload token is in the forwarded URL, so it may appear in Vercel's request logs, which only the project team can see.
+- **Cookies:** the browser sends Faike-domain cookies with the upload, and they are forwarded. Faike sets none. On password-protected Vercel preview deployments, Vercel's own access cookie may be forwarded to RD.
+
+**Verified.**
+- Lint, typecheck, unit tests and build are clean.
+- A local build forwarding to an echo server delivered the method, path, token, content type and all 6 MB of a test file (checksum match). Paths outside the pattern returned 404.
+- On the deployment, to be checked after merge: a request through `/rd-upload/` with a dummy id must return RD's own 404 echoing the token.
+
+**To remove.** When RD confirms Faike's addresses are allowed, set `enabled: false` (or delete `src/config/upload.ts`, `src/lib/rd/upload.ts` and the rewrite) and verify one direct upload.
+
 ## Remaining work
 
 ### Stage 3c — Hardening the real flow
-- [ ] **Confirm RD's CORS allow-list** covers every Faike origin (production and custom domains, Vercel previews, `http://localhost:3000`), then a real check of each media type and a social link on the deployment.
+- [ ] **Ask RD to allow Faike's origins** (production and custom domains, Vercel previews, `http://localhost:3000`), then switch off the temporary upload route and check each media type and a social link on the deployment.
+- [ ] Until then: test a large video through the upload route (Vercel's 120-second limit and undocumented size limit).
 - [ ] Real MP4 and MOV samples; the bundled sample video is WebM, which RD does not accept (it is used only by the mock).
 - [ ] Heat map presentation: RD's greyscale mask is faint over bright photos. Recolouring it needs CORS on RD's image storage or a server relay; design decision.
 - [ ] Feedback: RD needs a label (`REAL`, `SYNTHETIC`, `MANIPULATED`, `UNKNOWN`) and a category (`FALSE_POSITIVE`, `FALSE_NEGATIVE`, `CONFIRMATION`, `OTHER`); mapping Faike's Yes / No / Not sure is a product decision. Answers are kept in the tab for now. RD's feedback response includes the account holder's name and email, which must never be passed on.
@@ -250,7 +277,7 @@ The remaining mock visualisation is replaced by what RD returns. Where RD return
 - Favicon, app icon and social-share image.
 
 ### Reality Defender (HANDOFF §12)
-See the Stage 3a table: 5 answered, 4 partly answered, 3 open (thresholds, audio segments, showing model names). Questions to put to RD: adding Faike's origins to the upload CORS allow-list (confirmed blocking), the `aggregation.json` schema, how to read the sound result of a video (`audioRequestId`), whether the explanation page may be framed, the upload URL lifetime, the request id format, webhooks, whether model names may be shown, and whether Faike's RD plan covers video, text and links (RD's free tier covers images and audio only).
+See the Stage 3a table: 5 answered, 4 partly answered, 3 open (thresholds, audio segments, showing model names). Questions to put to RD: adding Faike's origins to the upload CORS allow-list (confirmed blocking; worked around for now), the `aggregation.json` schema, how to read the sound result of a video (`audioRequestId`), whether the explanation page may be framed, the upload URL lifetime, the request id format, webhooks, whether model names may be shown, and whether Faike's RD plan covers video, text and links (RD's free tier covers images and audio only).
 
 ### Product (HANDOFF §13)
 Share format · retention period · signed-out history · status-chip copy for authentic and artificial ("Looks good", "Be careful with this one" are proposals) · Plus model · follow-up on feedback "No".
@@ -280,6 +307,7 @@ Share format · retention period · signed-out history · status-chip copy for a
 | Default mock outcomes | Photo → authentic, voice and text → suspicious, video and video links → likely AI | Mock |
 | RD file name | Random `<uuid>.<ext>` instead of the person's file name | Privacy, derived |
 | Polling deadline | "This is taking longer than usual" + Try again (keeps waiting on the same request) | Derived |
+| Upload route | Same-origin rewrite to RD while RD's CORS excludes Faike; one switch removes it | Owner decision, temporary |
 | Model names | Shown as RD returns them, by the owner's instruction (25 Sep 2026); RD permission still to confirm; one switch hides them | Owner decision |
 | Heat map legend | Strength legend only with region outlines; RD's heat map keeps its own caption | Derived from live data |
 | One real check at a time | A new check stops and removes a real check still in progress | Brief |
