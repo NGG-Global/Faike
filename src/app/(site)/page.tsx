@@ -1,6 +1,7 @@
 import { StepStrip } from "@/components/home/StepStrip";
 import { Intake } from "@/components/intake/Intake";
 import { PageColumn } from "@/components/layout/PageColumn";
+import { homeIntro } from "@/lib/scan/copy";
 
 /* Home (01-upload): hero, the universal input, and the three steps. */
 export default function HomePage() {
@@ -11,10 +12,7 @@ export default function HomePage() {
         <br />
         Find out how real it looks.
       </h1>
-      <p className="mt-4.5 max-w-[640px] text-intro text-muted">
-        Photos, voice notes, videos, text or a link. Faike checks for signs of AI and tells you what it
-        found, in plain words.
-      </p>
+      <p className="mt-4.5 max-w-[640px] text-intro text-muted">{homeIntro()}</p>
 
       <Intake className="mt-8.5" />
 

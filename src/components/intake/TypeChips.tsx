@@ -1,4 +1,5 @@
-import { LINKS_FREE_TIER, MEDIA, MEDIA_TYPES } from "@/config/media";
+import { CAPABILITIES, enabledMediaTypes } from "@/config/capabilities";
+import { LINKS_FREE_TIER, MEDIA } from "@/config/media";
 import { cx } from "@/lib/cx";
 import type { Plan } from "@/lib/plan";
 import { Icon, type IconName } from "@/components/ui/Icon";
@@ -6,12 +7,13 @@ import { Icon, type IconName } from "@/components/ui/Icon";
 /*
  * HANDOFF §6.4. Informational chips, not buttons. Gated types show a PLUS
  * badge for free users and read "Video, requires Plus"; with Plus they
- * render like free chips.
+ * render like free chips. Kinds switched off in capabilities.ts are left
+ * out: the row lists what can be checked.
  */
 
 const CHIPS: { label: string; icon: IconName; free: boolean }[] = [
-  ...MEDIA_TYPES.map((type) => ({ label: MEDIA[type].chipLabel, icon: MEDIA[type].icon, free: MEDIA[type].freeTier })),
-  { label: "Links", icon: "link", free: LINKS_FREE_TIER },
+  ...enabledMediaTypes().map((type) => ({ label: MEDIA[type].chipLabel, icon: MEDIA[type].icon, free: MEDIA[type].freeTier })),
+  ...(CAPABILITIES.social ? [{ label: "Links", icon: "link" as const, free: LINKS_FREE_TIER }] : []),
 ];
 
 export function TypeChips({ plan, className }: { plan: Plan; className?: string }) {

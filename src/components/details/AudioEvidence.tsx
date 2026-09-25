@@ -84,9 +84,12 @@ export function AudioEvidence({
             <span className="font-bold text-ink">{formatDuration(time)}</span> / {formatDuration(duration)}
           </p>
         </div>
-        <div className="hidden sm:block">
-          <SignalLegend />
-        </div>
+        {/* The legend explains flagged moments; none are drawn without RD segment data. */}
+        {segments.length ? (
+          <div className="hidden sm:block">
+            <SignalLegend />
+          </div>
+        ) : null}
       </div>
 
       <div

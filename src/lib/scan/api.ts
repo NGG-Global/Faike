@@ -82,6 +82,8 @@ export interface ScanAnalysis {
 export const API_ERROR_CODES = [
   "invalid_request",
   "unsupported",
+  /** The kind of check is switched off for this deployment (src/config/capabilities.ts). */
+  "disabled",
   "too_large",
   "not_found",
   "rejected",

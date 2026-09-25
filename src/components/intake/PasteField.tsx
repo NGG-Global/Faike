@@ -14,19 +14,21 @@ import { RoundIconButton } from "@/components/ui/RoundIconButton";
 
 const LINE_HEIGHT = 24;
 const MAX_LINES = 6;
-const PLACEHOLDER = "…or paste a link or some text";
 
 export function PasteField({
   value,
   onChange,
   onSubmit,
   inputRef,
+  prompt,
   className,
 }: {
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
   inputRef: RefObject<HTMLTextAreaElement | null>;
+  /** From `pastePrompt()`: what can be pasted follows the switched-on kinds. */
+  prompt: { placeholder: string; label: string };
   className?: string;
 }) {
   const id = useId();
@@ -64,7 +66,7 @@ export function PasteField({
       )}
     >
       <label htmlFor={id} className="sr-only">
-        Paste a link or some text
+        {prompt.label}
       </label>
       <div className="relative min-w-0 flex-1">
         {value ? null : (
@@ -72,7 +74,7 @@ export function PasteField({
             aria-hidden="true"
             className="pointer-events-none absolute inset-x-0 top-3 truncate text-body-lg leading-6 text-muted"
           >
-            {PLACEHOLDER}
+            {prompt.placeholder}
           </span>
         )}
         <textarea

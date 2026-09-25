@@ -99,10 +99,13 @@ function Layout({ evidence, list, aside }: { evidence: ReactNode; list?: ReactNo
   );
 }
 
-function MediaUnavailable() {
+/** No preview: a post from a link is never copied to Faike; a local file's preview ends with a reload. */
+function MediaUnavailable({ kind }: { kind: ScanJob["input"]["kind"] }) {
   return (
     <section className="rounded-lg bg-surface p-6 text-ui leading-[1.5] text-ink-soft">
-      The preview isn&apos;t available after reloading the page. The result is unchanged.
+      {kind === "link"
+        ? "Faike doesn't keep a copy of posts from links, so the post isn't shown here. The result is unchanged."
+        : "The preview isn't available after reloading the page. The result is unchanged."}
     </section>
   );
 }
@@ -130,7 +133,7 @@ function AudioDetails({ job, result, level }: { job: ScanJob; result: ScanResult
   return (
     <Layout
       evidence={
-        src ? <AudioEvidence src={src} name={subjectName(result, job.input)} segments={segments} player={player} /> : <MediaUnavailable />
+        src ? <AudioEvidence src={src} name={subjectName(result, job.input)} segments={segments} player={player} /> : <MediaUnavailable kind={job.input.kind} />
       }
       list={
         result.segments ? (
@@ -177,9 +180,9 @@ function VideoDetails({ job, result, level }: { job: ScanJob; result: ScanResult
     <Layout
       evidence={
         src ? (
-          <VideoEvidence src={src} poster={job.media?.posterSrc} segments={segments} sceneCuts={result.sceneCuts} player={player} />
+          <VideoEvidence src={src} poster={job.media?.posterSrc} segments={result.segments} sceneCuts={result.sceneCuts} player={player} />
         ) : (
-          <MediaUnavailable />
+          <MediaUnavailable kind={job.input.kind} />
         )
       }
       list={
@@ -257,7 +260,7 @@ function ImageDetails({ job, result, level }: { job: ScanJob; result: ScanResult
               onZoom={setZoom}
             />
           ) : (
-            <MediaUnavailable />
+            <MediaUnavailable kind={job.input.kind} />
           )}
         </div>
       }

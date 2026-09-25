@@ -45,6 +45,8 @@ Run lint, typecheck, tests and build before every commit. Add unit tests for log
 - All server-side functionality goes in Route Handlers (`src/app/api/**/route.ts`). No other backend.
 - All RD-specific code lives in `src/lib/rd/`. Every module there except the pure `verdict.ts` imports `"server-only"`: `client.ts` (the only code that reads the key and calls RD), `types.ts`, `parse.ts` (runtime validation), `adapter.ts` (RD → Faike). Route Handlers return only the shapes in `src/lib/scan/api.ts`; the UI consumes `ScanResult` and those shapes, and nothing outside `src/lib/rd/` reads RD's raw response.
 - Configuration values that product or RD may change (score thresholds, size and duration limits, free-tier gating, platforms, reason codes) live in `src/config` or `src/lib/scan/copy.ts`, never inside components. Unconfirmed values are named or commented as placeholders.
+- Media categories, RD's extensions, size and duration limits and MIME families are declared only in `src/config/media.ts`. Which kinds of check are available is switched only in `src/config/capabilities.ts`, and both the browser and the Route Handlers enforce it before any paid call.
+- One live service (`src/lib/scan/live-service.ts`) runs every input. Never add scan logic per media type: new inputs reuse its stages, request-id handling, polling and error mapping.
 - Screens talk to checks only through `scanService` (`src/lib/scan/client.ts`, the `ScanService` contract) and the scan store (`useScanJob`, `useEnsureScan`). They never call RD or import the mock service directly.
 - Browser-only state is read with `useSyncExternalStore`; object URLs and other side effects are created in event handlers. The enabled React Compiler lint rules forbid synchronous setState in effects and reading refs during render.
 - The user's file is never re-hosted, shared or logged. Social-link media is never redistributed publicly.
@@ -59,9 +61,9 @@ Run lint, typecheck, tests and build before every commit. Add unit tests for log
 - **Scores are not probabilities.** Label them as model output scores. Never say "proof", "certain", "guaranteed" or "100%".
 - Confirm every assumption in HANDOFF §12 against RD's current documentation before wiring the adapter. Do not guess endpoints, field names or reason codes. The status of each item is in `progress.md`; the API flow is in `docs/architecture.md` §5.
 
-## Mock data (until every input is live)
+## Mock data (review tools only)
 
-- Image files run for real through `src/lib/scan/live-service.ts`; audio, video, text and links still use the mock. `src/lib/scan/client.ts` routes by input and by the job's `engine`. The `/mock` launcher always uses the mock, so review links never spend RD checks.
+- Every check started from the interface runs for real through `src/lib/scan/live-service.ts`. The mock serves only the `/mock` launcher and the demo checks, so review links never spend RD checks; `src/lib/scan/client.ts` routes cancel and retry by the job's `engine`.
 - Everything mock lives in `src/mocks/`: fixtures (every verdict × media type), the result builder, samples, the mock scan service, demo checks, mock settings, `?preview=` states and the `/mock` launcher. Product components do not embed mock data.
 - Documented seams into the mock: `src/lib/scan/client.ts` (service), `src/lib/plan.ts` (plan), the intake's example samples and `?preview=` hook. Remove the mock layer when RD is integrated; keep the example files (§6.6).
 - Fixtures use Faike's `ScanResult` shape, never a guessed RD schema. Mock model names are prefixed `mock-`; scores are illustrative.

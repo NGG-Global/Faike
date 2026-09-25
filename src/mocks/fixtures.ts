@@ -136,7 +136,7 @@ const audio: Record<Verdict, FixtureTemplate> = {
   not_applicable: {
     basisDurationSec: 48,
     language: "en",
-    notApplicableReason: "multiple_speakers",
+    notApplicableReason: "cross-talk",
     suitability: [
       { check: "duration", passed: true },
       { check: "single_speaker", passed: false },

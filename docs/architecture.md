@@ -1,6 +1,6 @@
 # Faike architecture
 
-Status: Stage 3b, part 1. Image files are checked for real: the browser uploads straight to Reality Defender and polls Faike's own status route; audio, video, text and links still run on the mock. In production the browser upload is blocked until RD adds Faike's origins to its CORS allow-list (§5, open points). Sections marked **Planned** describe the intended design.
+Status: Stage 3b complete. Every input the person submits (photo, audio, video, text file, pasted text, social link) is a real Reality Defender check through one live service; the mock serves only the `/mock` review tools and demo checks. Browser uploads depend on RD's CORS allow-list including Faike's origin (§5, open points). Sections marked **Planned** describe the intended design.
 
 ## 1. Overview
 
@@ -42,14 +42,16 @@ src/components/
 src/hooks/                 Browser helpers: media playback, decoded audio peaks, video frames, element width, media query.
 src/lib/scan/              types (ScanResult), job (flow state), store, service contract, client (swap point),
                            input (classify/validate), media-meta, meter, copy, facts,
-                           api (Route Handler contract, client-safe), api-input (request validation, pure).
+                           api (Route Handler contract, client-safe), api-input (request validation, pure),
+                           live-service (real checks for every input), api-client, poll, result.
 src/lib/rd/                Reality Defender. verdict.ts is pure and shared with the mock; every other module
                            imports "server-only": types (RD response subset), parse (runtime validation),
                            client (HTTP, timeouts, retries), errors, adapter (RD → Faike status).
 src/lib/api/respond.ts     Route Handler helpers: JSON body reading, no-store responses, safe error mapping.
 src/lib/guards.ts          Runtime type checks for unknown input.
-src/config/                Media limits, gating and RD-accepted extensions; meter thresholds (placeholders);
-                           social platforms (RD's list); RD language names and ensemble-name pattern.
+src/config/                media.ts: the single typed source for categories, RD extensions, size and duration
+                           limits, MIME families, Plus gating. capabilities.ts: which kinds are switched on.
+                           platforms.ts (RD's list), polling.ts, meter.ts (placeholders), rd.ts.
 .env.example               The two server-only variables, without values.
 src/mocks/                 MOCK ONLY: fixtures, result builder, samples, mock scan service, demo checks, settings,
                            home previews, review-page launcher. Removed at RD integration.
@@ -166,39 +168,45 @@ Server logs record the operation, kind, HTTP status and RD's machine code only, 
 
 **Tests.** Vitest with RD replaced by fetch stubs; `vitest.setup.ts` makes any unstubbed `fetch` throw, so no test can reach RD's paid API.
 
-### Browser flow (Stage 3b: image files)
+### Browser flow (Stage 3b: every input)
 
 ```
-Intake ─ validate (MIME family + RD extension, size) ─▶ scanService.start   (src/lib/scan/client.ts)
-                                                          │ image file?          otherwise → mock service
-                                                          ▼
-                                   live-service.ts: job { engine: "rd" } in the scan store
-                                                          │
-   presignUpload()  POST /api/scans/presign ──────────────┤  api-client.ts (responses validated)
-   putFile()        XHR PUT uploadUrl (progress) ─────────┤  uploading stage, real bytes
-   pollScan()       GET /api/scans/{requestId}, sequential┤  analysing stage, no percentage
-                                                          ▼
-                     resultFromAnalysis(input facts + ScanAnalysis) → done → existing result screens
+Intake ─ validateFile / validateText / validateLink ─▶ scanService.start          (src/lib/scan/client.ts)
+         (category, availability, format, size,        │
+          video length, Plus; config-driven)            ▼
+                                 live-service.ts: one job { engine: "rd" } in the scan store
+                                                        │
+          file or pasted text (.txt)                    │   social link
+   presignUpload()  POST /api/scans/presign             │   submitSocialLink()  POST /api/scans/social
+   putFile()        XHR PUT uploadUrl (progress)        │   stage "retrieving"
+                                  └──────── requestId ──┴──────┘
+   pollScan()       GET /api/scans/{requestId}, sequential; processing statuses move a link from
+                    "retrieving" to "analysing" and supply its media type
+                                                        ▼
+                  resultFromAnalysis(input facts + ScanAnalysis) → done → the existing result screens
 ```
 
+- **One state machine.** The job stages (uploading, retrieving, analysing, done, failed), request-id handling, polling, error mapping, retry, cancel and abort are shared by every input. Only `submit()` branches, on how the request id is obtained.
+- **Validation** runs in the browser before any paid call and again in the Route Handlers, both reading `src/config/media.ts` and `src/config/capabilities.ts`. Video duration comes from the file's own metadata via the built-in media element; when unreadable, RD's own limit applies.
+- **Capabilities.** A switched-off kind is left out of the intake's chips, examples, paste prompt and intro, explained with an "unavailable" card if submitted anyway, and refused by the server (`disabled`, 403).
 - **Polling** (`src/lib/scan/poll.ts`, values in `src/config/polling.ts`):
   - one request at a time, each with its own 35 s timeout
   - 2 s between requests, 4 s after 30 s, doubled after an error
   - fails after 3 consecutive errors, and at a 3-minute deadline
-  - stops at the first final state; a model still `ANALYZING` does not delay it, because completion follows the ensemble
-- **Abort:** each check has one AbortController. Starting a step, cancelling, or starting another check aborts the previous work, and a newer check removes an older one still in progress.
+  - stops at the first final state; a model still `ANALYZING` does not delay it
 - **Retry:**
-  - upload failure: presign and upload again
-  - status failure or deadline: resume polling the same request
-  - "Unable to analyze": send the file kept in memory again as a new check
-  - After a reload the file is gone, and `canRetry` is false.
-- **Result:** composed only from the person's file facts and RD's analysis. One heat map is shown, from the flagged model with the highest score. Model names are hidden until RD permits showing them (`RD_MODEL_NAMES_PUBLIC`).
+  - with a request id: resume polling
+  - without one: submit again (upload or link)
+  - "Unable to analyze": submit the kept input again
+  - After a reload the input is gone, and `canRetry` is false.
+- **Abort:** each check has one AbortController. A newer check stops and removes an older one still in progress.
+- **Result:** composed only from the person's input facts and RD's analysis. For links, the media type comes from RD, and no file facts or preview are shown (Faike never copies the post). Model names are hidden until RD permits (`RD_MODEL_NAMES_PUBLIC`).
 
-**Not built yet:** audio, video, text and social links on the live service; a server-side scan record; removal of the mock layer.
+**Not built yet:** a server-side scan record; heat-map recolouring; text explainability; feedback to RD.
 
 **Open points:**
 
-- **Browser upload (CORS): blocking.** Checked live on 24 Sep 2026: RD's upload endpoint (`api.prd.realitydefender.xyz/api/files/{id}`) answers preflights with `Access-Control-Allow-Origin` only for `https://app.realitydefender.ai`. Faike's origins get none, so browsers refuse the upload. RD must add Faike's production, preview and local-development origins. Relaying files through a Route Handler would contradict decision 32.
+- **Browser upload (CORS).** On 25 Sep 2026 the owner reported the real image flow working. From this environment a preflight on a real upload URL still showed no `Access-Control-Allow-Origin` for `https://faike.vercel.app`, so which origins RD allows needs confirming. Original check, 24 Sep 2026: RD's upload endpoint (`api.prd.realitydefender.xyz/api/files/{id}`) answers preflights with `Access-Control-Allow-Origin` only for `https://app.realitydefender.ai`. Faike's origins get none, so browsers refuse the upload. RD must add Faike's production, preview and local-development origins. Relaying files through a Route Handler would contradict decision 32.
 - **Upload URL lifetime.** RD documents a 15-minute expiry for media-detail URLs, not for the upload URL.
 - **Request id format.** Not documented. Faike accepts `[A-Za-z0-9_-]`, up to 128 characters, and fails closed otherwise.
 - **Detail data.** Segments, regions, scene timelines and text spans live in RD's `aggregation.json` (`modelMetadataUrl`), whose schema is not documented, so they are not mapped. Text explainability is a pre-signed HTML page; how to present it safely is undecided.
@@ -259,3 +267,9 @@ Intake ─ validate (MIME family + RD extension, size) ─▶ scanService.start 
 | 45 | Model names hidden in "Model results" until RD permits (`RD_MODEL_NAMES_PUBLIC`). | CLAUDE.md: show names only with RD's permission (HANDOFF §12.12), which is unconfirmed. |
 | 46 | Strength legend shown only with region outlines. | Live data: RD's heat map is a white intensity mask, not Faike's strength colours. |
 | 47 | Browser validation also requires RD's extensions. | The server refuses other extensions; checking first avoids starting an upload that cannot succeed. |
+| 48 | Every input runs on one live service; only the way the request id is obtained differs (upload vs social route). | The brief: no scan logic duplicated per media type. Stages, polling, errors, retry, cancel and abort are shared. |
+| 49 | `src/config/media.ts` is the single typed source for categories, extensions, limits and MIME families; `src/config/capabilities.ts` switches kinds on or off. | The brief: centralise, no constants in components. RD plan access varies, so each kind can be turned off in one place. |
+| 50 | Disabled kinds are hidden where the design lists what can be checked, explained if submitted, and refused by the server (`disabled`, 403). | The design has no disabled state; hiding keeps "what you can check" true, and nothing fails after upload. Not a subscription system; the Plus gate is separate. |
+| 51 | Pasted text is uploaded as a `.txt` file. | RD documents no endpoint for a text body; the text limits apply unchanged. |
+| 52 | Video length is read from the file's metadata with the built-in media element. | Meets the 30-minute check without a media-processing dependency; unreadable files fall back to RD's own limit. |
+| 53 | Validation messages live in `copy.ts` (`issueCopy`), built from the config. | CLAUDE.md: copy in one place, unit-tested; values never repeated in components. |

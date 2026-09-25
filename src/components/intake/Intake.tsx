@@ -2,11 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
-import { FILE_INPUT_ACCEPT } from "@/config/media";
+import { enabledMediaTypes } from "@/config/capabilities";
+import { fileInputAccept } from "@/config/media";
 import { cx } from "@/lib/cx";
 import { usePlan } from "@/lib/plan";
 import { scanService } from "@/lib/scan/client";
-import { classifyPaste, linkAllowed, mediaTypeForMime, validateFile, validateText, type ValidationIssue } from "@/lib/scan/input";
+import { pastePrompt } from "@/lib/scan/copy";
+import { classifyPaste, detectMediaType, validateFile, validateLink, validateText, type ValidationIssue } from "@/lib/scan/input";
 import type { InputSummary } from "@/lib/scan/job";
 import { readMediaMeta } from "@/lib/scan/media-meta";
 import type { StartInput } from "@/lib/scan/service";
@@ -20,10 +22,16 @@ import { PasteField } from "./PasteField";
 
 /*
  * The universal input (HANDOFF §6.3–§6.6): one drop zone for files, one
- * field for links and text, and example files. Validation and the Plus gate
- * run here, before anything is uploaded (§9.3). A cancelled check comes back
- * with its input still loaded (§7.3).
+ * field for links and text, and example files. Validation, availability
+ * (capabilities.ts) and the Plus gate run here, before anything is uploaded
+ * or any paid check starts (§9.3). A cancelled check comes back with its
+ * input still loaded (§7.3).
  */
+
+// What this deployment can check (fixed per build).
+const FILE_TYPES = enabledMediaTypes();
+const ACCEPT = fileInputAccept(FILE_TYPES);
+const PASTE_PROMPT = pastePrompt();
 
 type Phase =
   | { name: "ready" }
@@ -107,7 +115,7 @@ export function Intake({ className }: { className?: string }) {
     leavePhase();
     setFocusCheck(false);
     setPhase({ name: "reading", fileName: file.name });
-    const mediaType = mediaTypeForMime(file.type);
+    const mediaType = detectMediaType(file.name, file.type);
     const meta = mediaType ? await readMediaMeta(file, mediaType) : {};
     const summary: InputSummary = {
       kind: "file",
@@ -151,8 +159,9 @@ export function Intake({ className }: { className?: string }) {
     }
     leavePhase();
     if (input.kind === "link") {
-      if (!linkAllowed(plan)) {
-        setPhase({ name: "issue", issue: { kind: "gated", subject: "link" }, summary: { kind: "link", url: input.url } });
+      const result = validateLink(input.platform, plan);
+      if (!result.ok) {
+        setPhase({ name: "issue", issue: result.issue, summary: { kind: "link", url: input.url } });
         return;
       }
       start({ kind: "link", url: input.url, platformName: input.platform?.name, handle: input.handle });
@@ -233,7 +242,7 @@ export function Intake({ className }: { className?: string }) {
       <input
         ref={fileInputRef}
         type="file"
-        accept={FILE_INPUT_ACCEPT}
+        accept={ACCEPT}
         hidden
         onChange={(event) => {
           const file = event.target.files?.[0];
@@ -260,32 +269,37 @@ export function Intake({ className }: { className?: string }) {
         </div>
       ) : (
         <>
-          <div ref={zoneRef}>
-            <DropZone dragging={showDragging}>
-              {shownPhase.name === "selected" ? (
-                <DropZoneSelected
-                  summary={shownPhase.summary}
-                  previewUrl={shownPhase.previewUrl}
-                  onCheck={handleCheck}
-                  onBrowse={openPicker}
-                  checkRef={checkRef}
-                />
-              ) : shownPhase.name === "reading" ? (
-                <p className="text-body-lg text-muted" role="status">
-                  Opening {shownPhase.fileName}…
-                </p>
-              ) : (
-                <DropZoneReady plan={plan} onBrowse={openPicker} />
-              )}
-            </DropZone>
-          </div>
-          <PasteField
-            value={paste}
-            onChange={setPaste}
-            onSubmit={handlePasteSubmit}
-            inputRef={pasteRef}
-            className="mt-4"
-          />
+          {FILE_TYPES.length ? (
+            <div ref={zoneRef}>
+              <DropZone dragging={showDragging}>
+                {shownPhase.name === "selected" ? (
+                  <DropZoneSelected
+                    summary={shownPhase.summary}
+                    previewUrl={shownPhase.previewUrl}
+                    onCheck={handleCheck}
+                    onBrowse={openPicker}
+                    checkRef={checkRef}
+                  />
+                ) : shownPhase.name === "reading" ? (
+                  <p className="text-body-lg text-muted" role="status">
+                    Opening {shownPhase.fileName}…
+                  </p>
+                ) : (
+                  <DropZoneReady plan={plan} onBrowse={openPicker} />
+                )}
+              </DropZone>
+            </div>
+          ) : null}
+          {PASTE_PROMPT ? (
+            <PasteField
+              value={paste}
+              onChange={setPaste}
+              onSubmit={handlePasteSubmit}
+              inputRef={pasteRef}
+              prompt={PASTE_PROMPT}
+              className={FILE_TYPES.length ? "mt-4" : undefined}
+            />
+          ) : null}
           <ExampleLinks onExample={handleExample} busy={busy} className="mt-3.5 text-center" />
         </>
       )}

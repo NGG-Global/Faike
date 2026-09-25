@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { classifyPaste, displayUrl, linkAllowed, mediaTypeForMime, validateFile, validateText } from "./input";
+import { SOCIAL_PLATFORMS } from "@/config/platforms";
+import { classifyPaste, detectMediaType, displayUrl, linkAllowed, mediaTypeForMime, validateFile, validateLink, validateText } from "./input";
 
 describe("mediaTypeForMime", () => {
   it("classifies by MIME family", () => {
@@ -51,9 +52,9 @@ describe("validateFile (HANDOFF §9.3)", () => {
     });
   });
 
-  it("rejects a known MIME family with an extension Reality Defender does not accept", () => {
-    for (const [name, mime] of [["photo.heic", "image/heic"], ["photo.avif", "image/avif"], ["clip.webm", "video/webm"], ["noext", "image/jpeg"]]) {
-      expect(validateFile({ name, mime, sizeBytes: 10 }, "plus"), name).toEqual({ ok: false, issue: { kind: "unsupported" } });
+  it("rejects a known MIME family with an extension Reality Defender does not accept, naming the category", () => {
+    for (const [name, mime, subject] of [["photo.heic", "image/heic", "image"], ["photo.avif", "image/avif", "image"], ["clip.webm", "video/webm", "video"], ["noext", "image/jpeg", "image"]]) {
+      expect(validateFile({ name, mime, sizeBytes: 10 }, "plus"), name).toEqual({ ok: false, issue: { kind: "unsupported", subject } });
     }
     expect(validateFile({ name: "Photo.JPEG", mime: "image/jpeg", sizeBytes: 10 }, "plus")).toEqual({ ok: true, mediaType: "image" });
   });
@@ -92,5 +93,62 @@ describe("validateText and links", () => {
   it("allows links on Plus only", () => {
     expect(linkAllowed("plus")).toBe(true);
     expect(linkAllowed("free")).toBe(false);
+  });
+});
+
+const ALL = { image: true, audio: true, video: true, text: true, social: true } as const;
+
+describe("capabilities", () => {
+  it("explains a switched-off kind before size or Plus checks", () => {
+    const noVideo = { ...ALL, video: false };
+    expect(validateFile({ name: "big.mp4", mime: "video/mp4", sizeBytes: 999_000_000 }, "free", noVideo)).toEqual({
+      ok: false,
+      issue: { kind: "unavailable", subject: "video" },
+    });
+    expect(validateFile({ name: "a.jpg", mime: "image/jpeg", sizeBytes: 10 }, "plus", noVideo).ok).toBe(true);
+  });
+
+  it("covers pasted text and links", () => {
+    expect(validateText("hello", "plus", { ...ALL, text: false })).toEqual({ ok: false, issue: { kind: "unavailable", subject: "text" } });
+    expect(validateLink(SOCIAL_PLATFORMS[0], "plus", { ...ALL, social: false })).toEqual({
+      ok: false,
+      issue: { kind: "unavailable", subject: "social" },
+    });
+  });
+});
+
+describe("validateLink", () => {
+  it("accepts RD's platforms and refuses other sites before any request", () => {
+    expect(validateLink(SOCIAL_PLATFORMS[0], "plus")).toEqual({ ok: true });
+    expect(validateLink(null, "plus")).toEqual({ ok: false, issue: { kind: "unsupported", subject: "link" } });
+    expect(validateLink(SOCIAL_PLATFORMS[0], "free")).toEqual({ ok: false, issue: { kind: "gated", subject: "link" } });
+  });
+});
+
+describe("detectMediaType", () => {
+  it("uses the extension only when the browser gives no MIME type", () => {
+    expect(detectMediaType("memo.m4a", "")).toBe("audio");
+    expect(detectMediaType("song.flac", "application/octet-stream")).toBe("audio");
+    expect(detectMediaType("clip.mov", "video/quicktime")).toBe("video");
+    expect(detectMediaType("notes.pdf", "")).toBeNull();
+    expect(detectMediaType("a.jpg", "application/pdf")).toBeNull();
+  });
+
+  it("validates every RD format within its limits", () => {
+    const files: [string, string, number][] = [
+      ["a.gif", "image/gif", 50_000_000],
+      ["a.webp", "image/webp", 1],
+      ["a.alac", "", 20_000_000],
+      ["a.ogg", "audio/ogg", 1],
+      ["a.mov", "video/quicktime", 250_000_000],
+      ["a.txt", "text/plain", 900_000],
+    ];
+    for (const [name, mime, sizeBytes] of files) {
+      expect(validateFile({ name, mime, sizeBytes, durationSec: 60 }, "plus").ok, name).toBe(true);
+    }
+    expect(validateFile({ name: "long.mp4", mime: "video/mp4", sizeBytes: 1, durationSec: 30 * 60 + 1 }, "plus")).toMatchObject({
+      ok: false,
+      issue: { kind: "too_long", limitSec: 1800 },
+    });
   });
 });

@@ -39,23 +39,34 @@ class FakeXHR {
 }
 
 let presigns = 0;
+let socials = 0;
+const presignBodies: { fileName: string; mimeType: string; sizeBytes: number }[] = [];
 let statusFor: (requestId: string, call: number) => Status;
 const statusCalls: string[] = [];
 
 function install() {
   presigns = 0;
+  socials = 0;
+  presignBodies.length = 0;
   statusCalls.length = 0;
   FakeXHR.puts = [];
   FakeXHR.fail = false;
   vi.stubGlobal("XMLHttpRequest", FakeXHR);
   vi.stubGlobal(
     "fetch",
-    vi.fn<typeof fetch>(async (input) => {
+    vi.fn<typeof fetch>(async (input, init) => {
       const url = String(input);
       if (url === "/api/scans/presign") {
         presigns += 1;
+        presignBodies.push(JSON.parse(String(init?.body)));
         const requestId = `req-${presigns}`;
         return Response.json({ requestId, uploadUrl: `https://rd.example.test/api/files/${requestId}?token=t` });
+      }
+      if (url === "/api/scans/social") {
+        socials += 1;
+        const body = JSON.parse(String(init?.body));
+        if (body.url.includes("refused")) return Response.json({ error: { code: "rejected", message: "" } }, { status: 422 });
+        return Response.json({ requestId: `link-${socials}` });
       }
       const requestId = url.replace("/api/scans/", "");
       statusCalls.push(requestId);
@@ -98,7 +109,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe("live image checks", () => {
+describe("live checks", () => {
   it("uploads straight to the upload URL, polls Faike's route and shows RD's result", async () => {
     statusFor = (id, call) => (call < 3 ? processing(id) : complete(id));
     const { scanService, scanStore } = await load();
@@ -232,17 +243,101 @@ describe("live image checks", () => {
     expect(scanService.canRetry("restored")).toBe(false);
   });
 
-  it("keeps other media on the mock", async () => {
+  it("checks audio, video and text files through the same path", async () => {
+    statusFor = (id) => complete(id);
     const { scanService, scanStore } = await load();
-    const audio = new File([new Uint8Array(10)], "voice.wav", { type: "audio/wav" });
-    const id = scanService.start({
-      kind: "file",
-      file: audio,
-      summary: { kind: "file", mediaType: "audio", fileName: "voice.wav", mime: "audio/wav", sizeBytes: 10 },
-      media: { src: "/samples/voicenote_0923.wav", persistent: true },
-    });
-    expect(scanStore.getJob(id)?.engine).toBeUndefined();
-    await vi.advanceTimersByTimeAsync(100);
+    const files = [
+      { name: "voice.m4a", type: "audio/mp4", mediaType: "audio" as const, extra: { durationSec: 48 } },
+      { name: "clip.mov", type: "video/quicktime", mediaType: "video" as const, extra: { durationSec: 12, width: 960, height: 540 } },
+      { name: "notes.txt", type: "text/plain", mediaType: "text" as const, extra: { text: "Some words." } },
+    ];
+    for (const spec of files) {
+      const file = new File([new Uint8Array(20)], spec.name, { type: spec.type });
+      const id = scanService.start({
+        kind: "file",
+        file,
+        summary: { kind: "file", mediaType: spec.mediaType, fileName: spec.name, mime: spec.type, sizeBytes: 20, ...spec.extra },
+        media: spec.mediaType === "text" ? undefined : { src: `/samples/${spec.name}`, persistent: true },
+      });
+      expect(scanStore.getJob(id)?.engine).toBe("rd");
+      await vi.advanceTimersByTimeAsync(5_000);
+      const stage = scanStore.getJob(id)?.stage;
+      expect(stage?.name === "done" && stage.result, spec.name).toMatchObject({ mediaType: spec.mediaType, source: { kind: "file", fileName: spec.name } });
+    }
+    expect(presignBodies.map((body) => body.fileName)).toEqual(["voice.m4a", "clip.mov", "notes.txt"]);
+    expect(FakeXHR.puts).toHaveLength(3);
+  });
+
+  it("sends pasted text as a .txt file", async () => {
+    statusFor = (id) => complete(id);
+    const { scanService, scanStore } = await load();
+    const id = scanService.start({ kind: "paste", text: "Crème brûlée." });
+    expect(scanStore.getJob(id)?.stage.name).toBe("uploading");
+    await vi.advanceTimersByTimeAsync(5_000);
+    // Size in UTF-8 bytes (13 characters, three of them two bytes), as the 900 KB limit counts.
+    expect(presignBodies[0]).toEqual({ fileName: "pasted-text.txt", mimeType: "text/plain", sizeBytes: 16 });
+    expect(await (FakeXHR.puts[0].body as Blob).text()).toBe("Crème brûlée.");
+    const stage = scanStore.getJob(id)?.stage;
+    expect(stage?.name === "done" && stage.result).toMatchObject({ mediaType: "text", source: { kind: "paste" } });
+    expect(scanStore.getJob(id)?.input.text).toBe("Crème brûlée.");
+  });
+
+  it("checks a social link: retrieving, then analysing, then the result, with the media type from RD", async () => {
+    statusFor = (id, call) =>
+      call === 1
+        ? { requestId: id, state: "processing", stage: "retrieving" }
+        : call === 2
+          ? { requestId: id, state: "processing", stage: "analysing", mediaType: "video" }
+          : { ...complete(id), analysis: { ...(complete(id) as { analysis: object }).analysis, mediaType: "video" } } as ScanStatusResponse;
+    const { scanService, scanStore } = await load();
+    const id = scanService.start({ kind: "link", url: "https://www.tiktok.com/@citybeat/video/1", platformName: "TikTok", handle: "@citybeat" });
+    expect(scanStore.getJob(id)?.stage.name).toBe("retrieving");
     expect(presigns).toBe(0);
+
+    await vi.advanceTimersByTimeAsync(2_100);
+    expect(scanStore.getJob(id)?.stage.name).toBe("retrieving");
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(scanStore.getJob(id)).toMatchObject({ stage: { name: "analysing" }, input: { mediaType: "video" } });
+    await vi.advanceTimersByTimeAsync(2_000);
+    const stage = scanStore.getJob(id)?.stage;
+    expect(stage?.name === "done" && stage.result).toMatchObject({
+      mediaType: "video",
+      source: { kind: "link", url: "https://www.tiktok.com/@citybeat/video/1", platform: "TikTok", handle: "@citybeat" },
+      file: {},
+    });
+    expect(statusCalls.every((requestId) => requestId === "link-1")).toBe(true);
+  });
+
+  it("shows a link RD refuses, or cannot download, as a link that can't be opened", async () => {
+    statusFor = (id) => ({ requestId: id, state: "failed", reason: "retrieval" });
+    const { scanService, scanStore } = await load();
+    const refused = scanService.start({ kind: "link", url: "https://www.tiktok.com/refused" });
+    await vi.advanceTimersByTimeAsync(100);
+    expect(scanStore.getJob(refused)?.stage).toEqual({ name: "failed", failure: "retrieval", at: "retrieving" });
+
+    const lost = scanService.start({ kind: "link", url: "https://www.tiktok.com/private" });
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(scanStore.getJob(lost)?.stage).toEqual({ name: "failed", failure: "retrieval", at: "retrieving" });
+  });
+
+  it("gives a cancelled link back to the paste field", async () => {
+    statusFor = (id) => processing(id);
+    const { scanService, scanStore } = await load();
+    const id = scanService.start({ kind: "link", url: "https://youtu.be/abc" });
+    await vi.advanceTimersByTimeAsync(3_000);
+    scanService.cancel(id);
+    expect(scanStore.getState().draft).toEqual({ kind: "link", url: "https://youtu.be/abc" });
+  });
+
+  it("re-submits a link after an unable result, without the person pasting it again", async () => {
+    statusFor = (id) => complete(id, id === "link-1" ? "unable" : "artificial");
+    const { scanService, scanStore } = await load();
+    const id = scanService.start({ kind: "link", url: "https://youtu.be/abc" });
+    await vi.advanceTimersByTimeAsync(5_000);
+    scanService.retry(id);
+    await vi.advanceTimersByTimeAsync(5_000);
+    const job = scanStore.getJob(id);
+    expect(socials).toBe(2);
+    expect(job?.stage.name === "done" && job.stage.result.verdict).toBe("artificial");
   });
 });

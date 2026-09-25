@@ -69,6 +69,19 @@ describe("parsePresignRequest", () => {
   });
 });
 
+describe("capabilities on the server", () => {
+  const all = { image: true, audio: true, video: true, text: true, social: true } as const;
+
+  it("refuses a switched-off kind before any RD call", () => {
+    expect(parsePresignRequest({ fileName: "a.mp4", mimeType: "video/mp4", sizeBytes: 10 }, { ...all, video: false })).toMatchObject({
+      ok: false,
+      code: "disabled",
+    });
+    expect(parseSocialRequest({ url: "https://youtu.be/abc" }, { ...all, social: false })).toMatchObject({ ok: false, code: "disabled" });
+    expect(parsePresignRequest({ fileName: "a.txt", mimeType: "text/plain", sizeBytes: 10 }, all).ok).toBe(true);
+  });
+});
+
 describe("fileExtension", () => {
   it("returns the lower-case extension after the last dot", () => {
     expect(fileExtension("My.Holiday.MP4")).toBe("mp4");

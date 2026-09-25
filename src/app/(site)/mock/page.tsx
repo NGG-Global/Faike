@@ -78,8 +78,7 @@ export default function MockReviewPage() {
       <h1 className="mt-2 font-display text-h1-detail-mobile sm:text-h1-detail">Mock review</h1>
       <p className="mt-3 max-w-[70ch] text-body leading-[1.6] text-ink-soft">
         Every link on this page runs on bundled samples and fixtures, and nothing is uploaded. Checks you start yourself
-        on the home page differ: photos (including the example photo) are checked for real by Reality Defender, while
-        voice notes and text come back suspicious and videos likely AI from the mock, unless an outcome is chosen below.
+        on the home page, including the examples, are real Reality Defender checks and use its quota.
       </p>
 
       <section aria-labelledby="states" className="mt-10">

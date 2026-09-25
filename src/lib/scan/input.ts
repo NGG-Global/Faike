@@ -1,3 +1,4 @@
+import { CAPABILITIES, type Capabilities, type Capability } from "@/config/capabilities";
 import { LINKS_FREE_TIER, MEDIA, MEDIA_TYPES } from "@/config/media";
 import { SOCIAL_PLATFORMS, type SocialPlatform } from "@/config/platforms";
 import type { Plan } from "@/lib/plan";
@@ -63,7 +64,10 @@ export function displayUrl(url: string, max = 28): string {
 }
 
 export type ValidationIssue =
-  | { kind: "unsupported" }
+  /** `subject`: the category was recognised but this format or site is not accepted. */
+  | { kind: "unsupported"; subject?: MediaType | "link" }
+  /** The category is switched off for this deployment (capabilities.ts). */
+  | { kind: "unavailable"; subject: Capability }
   | { kind: "too_large"; mediaType: MediaType; limitBytes: number; sizeBytes: number }
   | { kind: "too_long"; mediaType: MediaType; limitSec: number; durationSec: number }
   | { kind: "gated"; subject: MediaType | "link" };
@@ -84,16 +88,31 @@ export function fileExtension(fileName: string): string | undefined {
   return fileName.slice(dot + 1).trim().toLowerCase();
 }
 
+export function mediaTypeForExtension(extension: string): MediaType | null {
+  return MEDIA_TYPES.find((type) => MEDIA[type].extensions.includes(extension)) ?? null;
+}
+
+/** Browsers report some audio files with no MIME type, or a generic one. */
+const UNTYPED = new Set(["", "application/octet-stream"]);
+
+/** The category from the MIME family, or from the extension when the browser gives no MIME type. */
+export function detectMediaType(name: string, mime: string): MediaType | null {
+  const type = mime.toLowerCase();
+  return mediaTypeForMime(type) ?? (UNTYPED.has(type) ? mediaTypeForExtension(fileExtension(name) ?? "") : null);
+}
+
 /**
- * Order per HANDOFF §9.4: type, then size and duration, then the Plus gate.
- * The type needs both a known MIME family and one of the extensions Reality
- * Defender accepts for it, as the server requires before an upload.
+ * Runs in the browser before anything is uploaded, with the same config the
+ * server enforces. Order (HANDOFF §9.4): category, availability, format,
+ * size, duration, then the Plus gate.
  */
-export function validateFile(file: FileFacts, plan: Plan): Validation {
-  const mediaType = mediaTypeForMime(file.mime);
+export function validateFile(file: FileFacts, plan: Plan, capabilities: Capabilities = CAPABILITIES): Validation {
+  const extension = fileExtension(file.name) ?? "";
+  const mediaType = detectMediaType(file.name, file.mime);
   if (!mediaType) return { ok: false, issue: { kind: "unsupported" } };
+  if (!capabilities[mediaType]) return { ok: false, issue: { kind: "unavailable", subject: mediaType } };
   const config = MEDIA[mediaType];
-  if (!config.extensions.includes(fileExtension(file.name) ?? "")) return { ok: false, issue: { kind: "unsupported" } };
+  if (!config.extensions.includes(extension)) return { ok: false, issue: { kind: "unsupported", subject: mediaType } };
   if (file.sizeBytes > config.maxBytes) {
     return { ok: false, issue: { kind: "too_large", mediaType, limitBytes: config.maxBytes, sizeBytes: file.sizeBytes } };
   }
@@ -111,13 +130,27 @@ export function textByteLength(text: string): number {
   return new TextEncoder().encode(text).length;
 }
 
-export function validateText(text: string, plan: Plan): Validation {
+/** Pasted text is sent as a .txt file, so it follows the text limits. */
+export function validateText(text: string, plan: Plan, capabilities: Capabilities = CAPABILITIES): Validation {
+  if (!capabilities.text) return { ok: false, issue: { kind: "unavailable", subject: "text" } };
   const sizeBytes = textByteLength(text);
   if (sizeBytes > MEDIA.text.maxBytes) {
     return { ok: false, issue: { kind: "too_large", mediaType: "text", limitBytes: MEDIA.text.maxBytes, sizeBytes } };
   }
   if (!MEDIA.text.freeTier && plan !== "plus") return { ok: false, issue: { kind: "gated", subject: "text" } };
   return { ok: true, mediaType: "text" };
+}
+
+/** A link must come from one of RD's platforms; size limits apply to the retrieved media, on RD's side. */
+export function validateLink(
+  platform: SocialPlatform | null,
+  plan: Plan,
+  capabilities: Capabilities = CAPABILITIES,
+): { ok: true } | { ok: false; issue: ValidationIssue } {
+  if (!capabilities.social) return { ok: false, issue: { kind: "unavailable", subject: "social" } };
+  if (!platform) return { ok: false, issue: { kind: "unsupported", subject: "link" } };
+  if (!linkAllowed(plan)) return { ok: false, issue: { kind: "gated", subject: "link" } };
+  return { ok: true };
 }
 
 /** Links are gated before retrieval; size limits apply to the retrieved media. */

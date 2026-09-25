@@ -1,5 +1,9 @@
-import { MEDIA } from "@/config/media";
-import { capitalise, numberWord, plural } from "@/lib/format";
+import { CAPABILITIES, enabledMediaTypes, type Capabilities } from "@/config/capabilities";
+import { formatList, MEDIA } from "@/config/media";
+import { SOCIAL_PLATFORMS } from "@/config/platforms";
+import { capitalise, formatBytes, formatDuration, numberWord, plural } from "@/lib/format";
+import type { ValidationIssue } from "./input";
+import type { InputSummary } from "./job";
 import type { Lane, MediaType, ScanResult, Strength, SuitabilityCheck, Verdict } from "./types";
 
 /*
@@ -168,19 +172,41 @@ export function suitabilityFailure(check: SuitabilityCheck): string {
 }
 
 /**
- * Not-applicable reason codes → copy (HANDOFF §8). PLACEHOLDER: the only
- * code here is the handoff's example; RD's real codes are unconfirmed
- * (§12.4). Unknown codes fall back to the generic sentence.
+ * Not-applicable reason codes → copy (HANDOFF §8). The codes are the ones
+ * RD documents in Media Detail (checked 24 Sep 2026): images `relevance`;
+ * audio `duration`, `detected`, `cross-talk`, `quality`, `language`; video
+ * reports none. Sentences are derived from RD's own messages; "cross-talk"
+ * uses the handoff's example wording. Unknown codes fall back to the
+ * generic sentence.
  */
 const NOT_APPLICABLE_REASONS: Record<string, { reason: string; fix?: string }> = {
-  multiple_speakers: {
+  relevance: {
+    reason: "we couldn't find a clear face in it",
+    fix: "Try a photo where a face is clearly visible.",
+  },
+  duration: {
+    reason: "the recording is too short",
+    fix: "Try a longer clip.",
+  },
+  detected: {
+    reason: "it sounds like a dial tone or music rather than speech",
+    fix: "Try a clip where someone is speaking.",
+  },
+  "cross-talk": {
     reason: "multiple speakers were detected",
     fix: "Try trimming it to a part where just one person is talking.",
+  },
+  quality: {
+    reason: "there's too much background noise",
+    fix: "Try a clearer recording.",
+  },
+  language: {
+    reason: "the speech seems to be in a language Faike can't check yet",
   },
 };
 
 export function notApplicableCopy(code?: string): { reason: string; fix?: string; known: boolean } {
-  const entry = code ? NOT_APPLICABLE_REASONS[code] : undefined;
+  const entry = code && Object.hasOwn(NOT_APPLICABLE_REASONS, code) ? NOT_APPLICABLE_REASONS[code] : undefined;
   return entry
     ? { ...entry, known: true }
     : { reason: "there wasn't enough suitable material to analyze", known: false };
@@ -241,4 +267,107 @@ function laneSentence(verdict: Verdict): string {
     default:
       return "couldn't be checked";
   }
+}
+
+/* Intake: validation messages and the paste prompt. */
+
+/** "Images can be up to 50 MB." (the handoff's "Audio files can be up to 20 MB."). */
+const SIZE_SUBJECT: Record<MediaType, string> = { image: "Images", audio: "Audio files", video: "Videos", text: "Text" };
+const SIZE_TIP: Record<MediaType, string> = {
+  image: "Try a smaller image.",
+  audio: "Try a shorter clip.",
+  video: "Try a shorter clip.",
+  text: "Try a shorter piece.",
+};
+
+function joinList(items: string[], conjunction: "and" | "or"): string {
+  return items.length > 1 ? `${items.slice(0, -1).join(", ")} ${conjunction} ${items.at(-1)}` : (items[0] ?? "");
+}
+
+function withArticle(phrase: string): string {
+  return `${/^[aeiou]/i.test(phrase) ? "an" : "a"} ${phrase}`;
+}
+
+/** Title, label and sentence for a validation issue other than the Plus gate (HANDOFF §8, derived states). */
+export function issueCopy(
+  issue: Exclude<ValidationIssue, { kind: "gated" }>,
+  summary?: InputSummary,
+  capabilities: Capabilities = CAPABILITIES,
+): { label: string; title: string; body: string } {
+  const enabled = enabledMediaTypes(capabilities);
+  switch (issue.kind) {
+    case "too_large": {
+      const pasted = summary?.kind === "paste";
+      const verb = issue.mediaType === "text" ? "This is" : "This one is";
+      return {
+        label: "File too big",
+        title: pasted ? "That text is over the limit" : "That file is over the limit",
+        body: `${SIZE_SUBJECT[issue.mediaType]} can be up to ${formatBytes(issue.limitBytes)}. ${verb} ${formatBytes(issue.sizeBytes)}. ${SIZE_TIP[issue.mediaType]}`,
+      };
+    }
+    case "too_long":
+      return {
+        label: "File too long",
+        title: "That video is over the limit",
+        body: `Videos can be up to ${Math.round(issue.limitSec / 60)} minutes. This one is ${formatDuration(issue.durationSec)} long. Try a shorter clip.`,
+      };
+    case "unsupported":
+      if (issue.subject === "link") {
+        return {
+          label: "Can't check this",
+          title: "Faike can't check links from this site",
+          body: `Faike checks links from ${joinList(SOCIAL_PLATFORMS.map((platform) => platform.name), "and")}.`,
+        };
+      }
+      if (issue.subject) {
+        return {
+          label: "Can't check this",
+          title: `Faike can't check this type of ${MEDIA[issue.subject].typeLabel.toLowerCase()}`,
+          body: `${SIZE_SUBJECT[issue.subject]} can be ${formatList(issue.subject)} files.`,
+        };
+      }
+      return {
+        label: "Can't check this",
+        title: "Faike can't check this kind of file",
+        body: enabled.length
+          ? `Try ${withArticle(joinList(enabled.map((type) => MEDIA[type].typeLabel.toLowerCase()), "or"))} file.`
+          : "Faike can't check files at the moment.",
+      };
+    case "unavailable": {
+      const what = issue.subject === "social" ? "Link" : MEDIA[issue.subject].typeLabel;
+      const others = enabled.filter((type) => type !== issue.subject).map((type) => MEDIA[type].chipLabel.toLowerCase());
+      const body =
+        issue.subject === "social" && enabled.length
+          ? "You can download the post and upload the file instead."
+          : others.length
+            ? `Faike can check ${joinList(others, "and")} at the moment.`
+            : "Try again later.";
+      return { label: "Not available", title: `${what} checks aren't available right now`, body };
+    }
+  }
+}
+
+/** The paste field follows what can be pasted (HANDOFF §6.5); null when nothing can. */
+export function pastePrompt(capabilities: Capabilities = CAPABILITIES): { placeholder: string; label: string } | null {
+  if (capabilities.social && capabilities.text) {
+    return { placeholder: "…or paste a link or some text", label: "Paste a link or some text" };
+  }
+  if (capabilities.social) return { placeholder: "…or paste a link", label: "Paste a link" };
+  if (capabilities.text) return { placeholder: "…or paste some text", label: "Paste some text" };
+  return null;
+}
+
+/**
+ * Home intro (01-upload). The handoff's sentence when everything is on;
+ * otherwise the same sentence listing only the kinds that are switched on.
+ */
+export function homeIntro(capabilities: Capabilities = CAPABILITIES): string {
+  const kinds: string[] = [];
+  if (capabilities.image) kinds.push("photos");
+  if (capabilities.audio) kinds.push("voice notes");
+  if (capabilities.video) kinds.push("videos");
+  if (capabilities.text) kinds.push("text");
+  if (capabilities.social) kinds.push("a link");
+  const list = capitalise(joinList(kinds, "or"));
+  return `${list ? `${list}. ` : ""}Faike checks for signs of AI and tells you what it found, in plain words.`;
 }

@@ -5,8 +5,10 @@ import type { ScanResult } from "./types";
 
 /*
  * Builds the ScanResult the screens consume from two sources only: what the
- * person submitted (file name, size, dimensions read in the browser) and
- * what Reality Defender reported (ScanAnalysis from Faike's route). Nothing
+ * person submitted (file name, size, duration and dimensions read in the
+ * browser; the link and its platform) and what Reality Defender reported
+ * (ScanAnalysis from Faike's route). For a link, the media type comes from
+ * RD; Faike never has the post itself, so no file facts are shown. Nothing
  * is inferred; fields neither source provides stay absent, so the elements
  * tied to them hide.
  */
@@ -24,7 +26,13 @@ export function resultFromAnalysis(args: {
   const result: ScanResult = {
     scanId,
     mediaType: input.mediaType ?? analysis.mediaType ?? "image",
-    source: compact({ kind: input.kind, fileName: input.kind === "file" ? input.fileName : undefined }),
+    source: compact({
+      kind: input.kind,
+      fileName: input.kind === "file" ? input.fileName : undefined,
+      url: input.kind === "link" ? input.url : undefined,
+      platform: input.kind === "link" ? input.platformName : undefined,
+      handle: input.kind === "link" ? input.handle : undefined,
+    }),
     file: compact({
       sizeBytes: input.sizeBytes,
       format: input.kind === "paste" ? undefined : formatLabel(input.fileName, input.mime),

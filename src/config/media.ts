@@ -2,8 +2,12 @@ import type { IconName } from "@/components/ui/Icon";
 import type { MediaType } from "@/lib/scan/types";
 
 /*
- * Media configuration (HANDOFF §9.3). Limits and free-tier gating live here,
- * never in components.
+ * The single source of truth for what Faike can check: media categories,
+ * accepted extensions, size and duration limits, MIME families and Plus
+ * gating (HANDOFF §9.3). Components, validation (browser and server) and
+ * messages all read from here; nothing else declares these values. Which
+ * categories are switched on lives in capabilities.ts; social platforms in
+ * platforms.ts.
  *
  * Limits and `extensions` match Reality Defender's AWS Presigned URL
  * documentation (checked 24 Sep 2026): images 50 MB, audio 20 MB, video
@@ -88,7 +92,18 @@ export const MEDIA_TYPES: readonly MediaType[] = ["image", "audio", "video", "te
 /** Social links are a Plus feature (HANDOFF §9.3). */
 export const LINKS_FREE_TIER = false;
 
-/** Passed to the file input so mobile pickers offer the right sources. */
-export const FILE_INPUT_ACCEPT = MEDIA_TYPES.flatMap((type) =>
-  MEDIA[type].mimeFamilies.map((family) => (family.endsWith("/") ? `${family}*` : family)),
-).join(",");
+/** For the file input, so mobile pickers offer the right sources: MIME families plus RD's extensions. */
+export function fileInputAccept(types: readonly MediaType[]): string {
+  return types
+    .flatMap((type) => [
+      ...MEDIA[type].mimeFamilies.map((family) => (family.endsWith("/") ? `${family}*` : family)),
+      ...MEDIA[type].extensions.map((extension) => `.${extension}`),
+    ])
+    .join(",");
+}
+
+/** "JPG, JPEG, PNG, GIF or WEBP", for messages. */
+export function formatList(type: MediaType): string {
+  const names = MEDIA[type].extensions.map((extension) => extension.toUpperCase());
+  return names.length > 1 ? `${names.slice(0, -1).join(", ")} or ${names.at(-1)}` : names[0];
+}

@@ -22,15 +22,19 @@ export type PollOutcome =
   | { kind: "error"; code: ClientErrorCode }
   | { kind: "aborted" };
 
+type ProcessingStatus = Extract<ScanStatusResponse, { state: "processing" }>;
+
 export interface PollDeps {
   getStatus: (requestId: string, signal: AbortSignal) => Promise<ApiResult<ScanStatusResponse>>;
+  /** Each non-final status, e.g. to move a link from "retrieving" to "analysing". */
+  onProcessing?: (status: ProcessingStatus) => void;
   sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
   now?: () => number;
   config?: PollingConfig;
 }
 
 export async function pollScan(requestId: string, signal: AbortSignal, deps: PollDeps): Promise<PollOutcome> {
-  const { getStatus, sleep = abortableSleep, now = Date.now, config = POLLING } = deps;
+  const { getStatus, onProcessing, sleep = abortableSleep, now = Date.now, config = POLLING } = deps;
   const started = now();
   let errors = 0;
 
@@ -54,6 +58,7 @@ export async function pollScan(requestId: string, signal: AbortSignal, deps: Pol
     const status = result.data;
     if (status.state === "complete") return { kind: "complete", analysis: status.analysis };
     if (status.state === "failed") return { kind: "retrieval_failed" };
+    onProcessing?.(status);
   }
 }
 

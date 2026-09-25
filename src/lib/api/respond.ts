@@ -17,6 +17,7 @@ const MAX_BODY_BYTES = 8 * 1024;
 const STATUS: Record<ApiErrorCode, number> = {
   invalid_request: 400,
   unsupported: 400,
+  disabled: 403,
   too_large: 400,
   not_found: 404,
   rejected: 422,
@@ -29,6 +30,7 @@ const STATUS: Record<ApiErrorCode, number> = {
 const MESSAGES: Record<ApiErrorCode, string> = {
   invalid_request: "The request is not valid.",
   unsupported: "This input is not supported.",
+  disabled: "This kind of check is not available.",
   too_large: "The file is over the size limit.",
   not_found: "No check was found with that id.",
   rejected: "The check service could not accept this input.",

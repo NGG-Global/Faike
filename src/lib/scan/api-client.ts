@@ -1,6 +1,14 @@
 import { POLLING } from "@/config/polling";
 import { isRecord } from "@/lib/guards";
-import { API_ERROR_CODES, type ApiErrorCode, type PresignRequest, type PresignResponse, type ScanStatusResponse } from "./api";
+import {
+  API_ERROR_CODES,
+  type ApiErrorCode,
+  type PresignRequest,
+  type PresignResponse,
+  type ScanStatusResponse,
+  type SocialRequest,
+  type SocialResponse,
+} from "./api";
 import { isRequestId } from "./api-input";
 import type { Verdict } from "./types";
 
@@ -22,6 +30,15 @@ export function presignUpload(body: PresignRequest, signal: AbortSignal): Promis
     { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) },
     signal,
     isPresignResponse,
+  );
+}
+
+export function submitSocialLink(body: SocialRequest, signal: AbortSignal): Promise<ApiResult<SocialResponse>> {
+  return call(
+    "/api/scans/social",
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) },
+    signal,
+    (value): value is SocialResponse => isRecord(value) && isRequestId(value.requestId),
   );
 }
 

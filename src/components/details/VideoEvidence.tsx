@@ -14,7 +14,8 @@ import { NumberBadge, SignalLegend } from "@/components/ui/Tags";
  * it, two lanes, "Picture" and "Sound", show flagged segments as bands with
  * numbered badges, scene cuts as ticks (only if RD provides them) and the
  * playhead. The lanes are a pointer shortcut; the moments list and the
- * player offer the same by keyboard.
+ * player offer the same by keyboard. Without segment data from RD (absent,
+ * not empty) the lanes are left out rather than drawn empty.
  */
 
 const LANES: Lane[] = ["picture", "sound"];
@@ -28,7 +29,7 @@ export function VideoEvidence({
 }: {
   src: string;
   poster?: string;
-  segments: Segment[];
+  segments?: Segment[];
   sceneCuts?: number[];
   player: MediaPlayback;
 }) {
@@ -52,45 +53,49 @@ export function VideoEvidence({
         className="block max-h-[60vh] w-full rounded-md bg-ink"
       />
 
-      <div className="mt-5 flex items-center justify-between gap-3">
-        <p className="text-small font-semibold">Where Faike reacted</p>
-        <SignalLegend />
-      </div>
+      {segments ? (
+        <>
+          <div className="mt-5 flex items-center justify-between gap-3">
+            <p className="text-small font-semibold">Where Faike reacted</p>
+            <SignalLegend />
+          </div>
 
-      <div className="mt-3 flex gap-3" aria-hidden="true">
-        <div className="flex w-17 shrink-0 flex-col gap-2 pt-4 sm:w-20">
-          {LANES.map((lane) => (
-            <span key={lane} className="flex h-9 items-center text-caption font-semibold text-muted">
-              {LANE_LABEL[lane]}
-            </span>
-          ))}
-        </div>
-        <div className="relative min-w-0 flex-1">
-          <div className="relative h-2">
-            {sceneCuts?.map((cut) => (
-              <span key={cut} className="absolute top-0 h-2 w-px bg-muted" style={{ left: `${percent(cut)}%` }} />
-            ))}
-          </div>
-          <div className="mt-2 flex flex-col gap-2">
-            {LANES.map((lane) => (
-              <LaneTrack
-                key={lane}
-                segments={segments.filter((s) => (s.lane ?? "picture") === lane)}
-                percent={percent}
-                onPointerDown={seekFromPointer}
+          <div className="mt-3 flex gap-3" aria-hidden="true">
+            <div className="flex w-17 shrink-0 flex-col gap-2 pt-4 sm:w-20">
+              {LANES.map((lane) => (
+                <span key={lane} className="flex h-9 items-center text-caption font-semibold text-muted">
+                  {LANE_LABEL[lane]}
+                </span>
+              ))}
+            </div>
+            <div className="relative min-w-0 flex-1">
+              <div className="relative h-2">
+                {sceneCuts?.map((cut) => (
+                  <span key={cut} className="absolute top-0 h-2 w-px bg-muted" style={{ left: `${percent(cut)}%` }} />
+                ))}
+              </div>
+              <div className="mt-2 flex flex-col gap-2">
+                {LANES.map((lane) => (
+                  <LaneTrack
+                    key={lane}
+                    segments={segments.filter((s) => (s.lane ?? "picture") === lane)}
+                    percent={percent}
+                    onPointerDown={seekFromPointer}
+                  />
+                ))}
+              </div>
+              <div className="relative mt-2 h-4 text-micro font-semibold text-muted tabular-nums">
+                <span className="absolute left-0">0:00</span>
+                <span className="absolute right-0">{formatDuration(duration)}</span>
+              </div>
+              <div
+                className="pointer-events-none absolute top-3 h-[88px] w-0.5 rounded-[2px] bg-ink"
+                style={{ left: `${percent(time)}%` }}
               />
-            ))}
+            </div>
           </div>
-          <div className="relative mt-2 h-4 text-micro font-semibold text-muted tabular-nums">
-            <span className="absolute left-0">0:00</span>
-            <span className="absolute right-0">{formatDuration(duration)}</span>
-          </div>
-          <div
-            className="pointer-events-none absolute top-3 h-[88px] w-0.5 rounded-[2px] bg-ink"
-            style={{ left: `${percent(time)}%` }}
-          />
-        </div>
-      </div>
+        </>
+      ) : null}
     </section>
   );
 }

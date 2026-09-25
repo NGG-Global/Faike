@@ -1,8 +1,9 @@
-import { MEDIA, MEDIA_TYPES } from "@/config/media";
+import { CAPABILITIES, type Capabilities } from "@/config/capabilities";
+import { MEDIA } from "@/config/media";
 import type { SocialPlatform } from "@/config/platforms";
 import { isRecord } from "@/lib/guards";
 import type { ApiErrorCode } from "./api";
-import { detectPlatform, fileExtension, mediaTypeForMime } from "./input";
+import { detectPlatform, fileExtension, mediaTypeForExtension, mediaTypeForMime } from "./input";
 import type { MediaType } from "./types";
 
 /*
@@ -32,17 +33,13 @@ function fail<T>(code: ApiErrorCode, message: string): Parsed<T> {
   return { ok: false, code, message };
 }
 
-export function mediaTypeForExtension(extension: string): MediaType | null {
-  return MEDIA_TYPES.find((type) => MEDIA[type].extensions.includes(extension)) ?? null;
-}
-
 export interface PresignInput {
   mediaType: MediaType;
   extension: string;
   sizeBytes: number;
 }
 
-export function parsePresignRequest(body: unknown): Parsed<PresignInput> {
+export function parsePresignRequest(body: unknown, capabilities: Capabilities = CAPABILITIES): Parsed<PresignInput> {
   if (!isRecord(body)) return fail("invalid_request", "Expected a JSON object.");
   const { fileName, mimeType, sizeBytes } = body;
 
@@ -59,6 +56,7 @@ export function parsePresignRequest(body: unknown): Parsed<PresignInput> {
   const extension = fileExtension(fileName);
   const mediaType = extension ? mediaTypeForExtension(extension) : null;
   if (!extension || !mediaType) return fail("unsupported", "This file type is not supported.");
+  if (!capabilities[mediaType]) return fail("disabled", `${MEDIA[mediaType].typeLabel} checks are switched off.`);
 
   // The extension decides, as it does for RD. A recognised MIME family that
   // disagrees with it is refused; an empty or generic MIME type is not.
@@ -77,7 +75,8 @@ export interface SocialInput {
   platform: SocialPlatform;
 }
 
-export function parseSocialRequest(body: unknown): Parsed<SocialInput> {
+export function parseSocialRequest(body: unknown, capabilities: Capabilities = CAPABILITIES): Parsed<SocialInput> {
+  if (!capabilities.social) return fail("disabled", "Link checks are switched off.");
   if (!isRecord(body) || typeof body.url !== "string") return fail("invalid_request", "url must be a string.");
   const raw = body.url.trim();
   if (raw === "" || raw.length > MAX_URL_LENGTH) {

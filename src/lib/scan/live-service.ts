@@ -1,36 +1,41 @@
-import { getScanStatus, presignUpload, putFile } from "./api-client";
-import type { ScanJob, ScanStage } from "./job";
+import { getScanStatus, presignUpload, putFile, submitSocialLink } from "./api-client";
+import type { Draft, InputSummary, MediaRef, ScanJob, ScanStage } from "./job";
 import { pollScan } from "./poll";
 import { resultFromAnalysis } from "./result";
-import type { ScanService, StartInput } from "./service";
+import type { ScanService } from "./service";
 import { scanStore } from "./store";
 
 /*
- * Real checks through Reality Defender, for image files only (first
- * vertical slice; every other input stays on the mock).
+ * Real checks through Reality Defender, for every input: photo, audio,
+ * video and text files, pasted text and social links.
  *
- *   presign (POST /api/scans/presign) → PUT the file straight to the
- *   upload URL → poll GET /api/scans/{requestId} → result.
+ * Only the way the request id is obtained differs:
+ *   file (pasted text becomes a .txt file) → POST /api/scans/presign, then
+ *   PUT the file straight to the upload URL;
+ *   link → POST /api/scans/social; RD downloads the post itself.
+ * Everything after it is shared: one set of job stages, one poller
+ * (GET /api/scans/{requestId}), one error mapping, one retry and cancel path.
  *
  * The browser never sees the RD key. Each check has one AbortController:
- * starting a step aborts the previous one, so a check never runs two
- * loops, and cancel or a newer check stops everything at once. The file
- * stays in memory for retries in this tab only; it is never stored.
+ * starting a step aborts the previous one, so a check never runs two loops,
+ * and cancel or a newer check stops everything at once. Files stay in memory
+ * for retries in this tab only; they are never stored.
  */
 
+type Submission = { kind: "file"; file: File } | { kind: "link"; url: string };
+
 interface Check {
-  file: File;
+  submission: Submission;
+  /** What Cancel puts back on the home page (HANDOFF §7.3). */
+  draft: Draft;
   requestId?: string;
   controller?: AbortController;
 }
 
 const checks = new Map<string, Check>();
 
-export type LiveInput = Extract<StartInput, { kind: "file" }>;
-
-export function handlesInput(input: StartInput): input is LiveInput {
-  return input.kind === "file" && input.summary.mediaType === "image";
-}
+/** Name of the file pasted text is sent as; RD itself receives a random name with this extension. */
+const PASTED_TEXT_FILE = "pasted-text.txt";
 
 /** randomUUID exists only in secure contexts; plain-http LAN testing falls back. */
 function newId(): string {
@@ -53,55 +58,86 @@ function connectionFailure(): "offline" | "network" {
   return typeof navigator !== "undefined" && navigator.onLine === false ? "offline" : "network";
 }
 
-async function upload(id: string) {
-  const check = checks.get(id);
-  const job = scanStore.getJob(id);
-  if (!check || !job) return;
-  const signal = renew(check);
-  const { file } = check;
-  check.requestId = undefined;
-  setStage(id, { name: "uploading", loadedBytes: 0, totalBytes: file.size });
+const IN_PROGRESS = new Set<ScanStage["name"]>(["uploading", "retrieving", "analysing"]);
 
+/** Obtains a request id for the check, then waits for its result. */
+async function submit(id: string) {
+  const check = checks.get(id);
+  if (!check || !scanStore.getJob(id)) return;
+  const signal = renew(check);
+  check.requestId = undefined;
+  const requestId = check.submission.kind === "file" ? await uploadFile(id, check.submission.file, signal) : await submitLink(id, check.submission.url, signal);
+  if (!requestId || signal.aborted) return;
+  check.requestId = requestId;
+  await analyse(id);
+}
+
+async function uploadFile(id: string, file: File, signal: AbortSignal): Promise<string | undefined> {
+  const input = scanStore.getJob(id)?.input;
+  setStage(id, { name: "uploading", loadedBytes: 0, totalBytes: file.size });
   const presign = await presignUpload(
-    { fileName: job.input.fileName ?? file.name, mimeType: file.type, sizeBytes: file.size },
+    { fileName: input?.fileName ?? file.name, mimeType: file.type, sizeBytes: file.size },
     signal,
   );
   if (signal.aborted) return;
-  if (!presign.ok) return setStage(id, { name: "failed", failure: connectionFailure(), at: "uploading" });
+  if (!presign.ok) return void setStage(id, { name: "failed", failure: connectionFailure(), at: "uploading" });
 
   const outcome = await putFile(presign.data.uploadUrl, file, signal, (loaded, total) =>
     setStage(id, { name: "uploading", loadedBytes: loaded, totalBytes: total }),
   );
   if (outcome === "aborted" || signal.aborted) return;
-  if (outcome === "failed") return setStage(id, { name: "failed", failure: connectionFailure(), at: "uploading" });
+  if (outcome === "failed") return void setStage(id, { name: "failed", failure: connectionFailure(), at: "uploading" });
+  return presign.data.requestId;
+}
 
-  check.requestId = presign.data.requestId;
-  await analyse(id);
+async function submitLink(id: string, url: string, signal: AbortSignal): Promise<string | undefined> {
+  setStage(id, { name: "retrieving" });
+  const result = await submitSocialLink({ url }, signal);
+  if (signal.aborted) return;
+  if (result.ok) return result.data.requestId;
+  // RD refusing the link reads as "We couldn't open that link" (HANDOFF §8).
+  const refused = result.code === "rejected" || result.code === "unsupported";
+  setStage(id, { name: "failed", failure: refused ? "retrieval" : connectionFailure(), at: "retrieving" });
 }
 
 async function analyse(id: string) {
   const check = checks.get(id);
   if (!check?.requestId) return;
   const signal = renew(check);
-  // RD reports status only, so progress stays indeterminate (HANDOFF §6.8).
-  setStage(id, { name: "analysing", step: "checking", progress: null });
+  // A link shows "retrieving" until RD has the post. RD reports status only,
+  // so analysis progress stays indeterminate (HANDOFF §6.8).
+  const analysing: ScanStage = { name: "analysing", step: "checking", progress: null };
+  setStage(id, check.submission.kind === "link" ? { name: "retrieving" } : analysing);
 
-  const outcome = await pollScan(check.requestId, signal, { getStatus: getScanStatus });
+  const outcome = await pollScan(check.requestId, signal, {
+    getStatus: getScanStatus,
+    onProcessing: (status) =>
+      scanStore.updateJob(id, (job) => ({
+        ...job,
+        input: job.input.mediaType || !status.mediaType ? job.input : { ...job.input, mediaType: status.mediaType },
+        stage: status.stage === "retrieving" ? { name: "retrieving" } : job.stage.name === "analysing" ? job.stage : analysing,
+        live: true,
+      })),
+  });
+
+  const at = scanStore.getJob(id)?.stage.name === "retrieving" ? "retrieving" : "analysing";
   switch (outcome.kind) {
     case "aborted":
       return;
     case "complete": {
-      const job = scanStore.getJob(id);
-      if (!job) return;
-      const result = resultFromAnalysis({ scanId: id, input: job.input, analysis: outcome.analysis, checkedAt: new Date().toISOString() });
-      return setStage(id, { name: "done", result });
+      const { analysis } = outcome;
+      return scanStore.updateJob(id, (job) => {
+        const input = job.input.mediaType || !analysis.mediaType ? job.input : { ...job.input, mediaType: analysis.mediaType };
+        const result = resultFromAnalysis({ scanId: id, input, analysis, checkedAt: new Date().toISOString() });
+        return { ...job, input, stage: { name: "done", result }, live: true };
+      });
     }
     case "retrieval_failed":
-      return setStage(id, { name: "failed", failure: "retrieval", at: "analysing" });
+      return setStage(id, { name: "failed", failure: "retrieval", at: "retrieving" });
     case "timeout":
-      return setStage(id, { name: "failed", failure: "timeout", at: "analysing" });
+      return setStage(id, { name: "failed", failure: "timeout", at });
     case "error":
-      return setStage(id, { name: "failed", failure: connectionFailure(), at: "analysing" });
+      return setStage(id, { name: "failed", failure: connectionFailure(), at });
   }
 }
 
@@ -111,22 +147,30 @@ function releaseMedia(job: ScanJob | undefined) {
 
 export const liveScanService: ScanService & { abortInProgress(): void } = {
   start(input) {
-    if (!handlesInput(input)) throw new Error("The live service checks image files only.");
     const id = newId();
-    const media = input.media ?? { src: URL.createObjectURL(input.file), persistent: false };
+    let summary: InputSummary;
+    let check: Check;
+    let media: MediaRef | undefined;
+
+    if (input.kind === "file") {
+      summary = input.summary;
+      check = { submission: { kind: "file", file: input.file }, draft: { kind: "file", file: input.file, summary } };
+      media = input.media ?? (summary.mediaType === "text" ? undefined : { src: URL.createObjectURL(input.file), persistent: false });
+    } else if (input.kind === "paste") {
+      const file = new File([input.text], PASTED_TEXT_FILE, { type: "text/plain" });
+      summary = { kind: "paste", mediaType: "text", text: input.text, sizeBytes: file.size };
+      check = { submission: { kind: "file", file }, draft: { kind: "paste", text: input.text } };
+    } else {
+      summary = { kind: "link", url: input.url, platformName: input.platformName, handle: input.handle };
+      check = { submission: { kind: "link", url: input.url }, draft: { kind: "link", url: input.url } };
+    }
+
+    const stage: ScanStage =
+      check.submission.kind === "file" ? { name: "uploading", loadedBytes: 0, totalBytes: check.submission.file.size } : { name: "retrieving" };
     scanStore.setDraft(null);
-    scanStore.putJob({
-      id,
-      createdAt: Date.now(),
-      input: input.summary,
-      media,
-      stage: { name: "uploading", loadedBytes: 0, totalBytes: input.file.size },
-      retries: 0,
-      live: true,
-      engine: "rd",
-    });
-    checks.set(id, { file: input.file });
-    void upload(id);
+    scanStore.putJob({ id, createdAt: Date.now(), input: summary, media, stage, retries: 0, live: true, engine: "rd" });
+    checks.set(id, check);
+    void submit(id);
     return id;
   },
 
@@ -139,12 +183,12 @@ export const liveScanService: ScanService & { abortInProgress(): void } = {
     const job = scanStore.getJob(id);
     check?.controller?.abort();
     checks.delete(id);
-    if (check && job) {
-      // The photo comes back on the home page with its preview (HANDOFF §7.3).
-      const previewUrl = job.media && !job.media.persistent ? job.media.src : undefined;
-      scanStore.setDraft({ kind: "file", file: check.file, summary: job.input, previewUrl });
+    if (check?.draft.kind === "file" && job?.input.mediaType === "image" && job.media && !job.media.persistent) {
+      // A photo comes back with its preview.
+      scanStore.setDraft({ ...check.draft, previewUrl: job.media.src });
     } else {
       releaseMedia(job);
+      scanStore.setDraft(check?.draft ?? null);
     }
     scanStore.removeJob(id);
   },
@@ -154,13 +198,13 @@ export const liveScanService: ScanService & { abortInProgress(): void } = {
     const stage = scanStore.getJob(id)?.stage;
     if (!check || !stage) return;
     if (stage.name === "failed") {
-      // Waiting again needs no new upload; a failed upload starts over.
-      void (stage.at === "analysing" && check.requestId ? analyse(id) : upload(id));
+      // With a request id, waiting resumes on it; otherwise the submission starts over.
+      void (check.requestId ? analyse(id) : submit(id));
     } else if (stage.name === "done") {
-      // "Unable": RD documents no way to re-run a check, so the file kept in
-      // this tab is sent again as a new one. The person does not re-select it.
+      // "Unable": RD documents no way to re-run a check, so the input kept in
+      // this tab is submitted again as a new one. The person does not re-select it.
       scanStore.updateJob(id, (job) => ({ ...job, retries: job.retries + 1 }));
-      void upload(id);
+      void submit(id);
     }
   },
 
@@ -174,11 +218,11 @@ export const liveScanService: ScanService & { abortInProgress(): void } = {
     scanStore.updateJob(id, (job) => ({ ...job, feedback: answer }));
   },
 
-  /** A newer check replaces any real check still uploading or analysing. */
+  /** A newer check replaces any real check still in progress. */
   abortInProgress() {
     for (const [id, check] of checks) {
       const job = scanStore.getJob(id);
-      if (job && job.stage.name !== "uploading" && job.stage.name !== "analysing") continue;
+      if (job && !IN_PROGRESS.has(job.stage.name)) continue;
       check.controller?.abort();
       checks.delete(id);
       releaseMedia(job);
