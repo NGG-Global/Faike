@@ -56,6 +56,20 @@ export interface RdMediaDetail {
   models: RdModelResult[];
   /** Model name → pre-signed PNG URL. Meaningful only for images; see the adapter. */
   heatmaps?: Record<string, string>;
+  /** Text: pre-signed URL of RD's HTML explanation ("" for other media). Expires after 15 minutes. */
+  explainabilityUrl?: string;
+  /**
+   * Pre-signed URL of `aggregation.json`, which RD's own interface uses for
+   * timelines, chunks and boxes. RD documents only its top-level keys, so
+   * Faike does not map its contents yet (see src/lib/rd/aggregation.ts).
+   */
+  modelMetadataUrl?: string;
+  /** Video with sound: the same, for the extracted audio. */
+  audioModelMetadataUrl?: string;
+  /** Video with sound: RD also checked the extracted audio. The docs show it as "True"/"False". */
+  showAudioResult?: boolean;
+  /** Video with sound: the request id of that audio check. */
+  audioRequestId?: string;
 }
 
 export interface RdResultsSummary {

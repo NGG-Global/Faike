@@ -143,7 +143,7 @@ GET /api/scans/{requestId}  ──────▶ GET /api/media/users/{requestI
 | `AUTHENTIC` / `FAKE` / `SUSPICIOUS` / `NOT_APPLICABLE` / `UNABLE_TO_EVALUATE` | `complete`, verdict via `verdictFromRd` |
 | any other value | `complete`, verdict `unable` |
 
-In a complete result: `ensembleScore` = `finalScore / 100`, only for authentic, suspicious and artificial; `language` = first name in `metadata.languages` found in `RD_LANGUAGE_CODES`; `notApplicableReasons` = `metadata.reasons[].code` (RD's message text is dropped); `models` = every model except those RD marks not applicable, by the name RD returns; `heatmaps` = image only, only when the verdict is suspicious or artificial, only from non-ensemble models with status `FAKE`. RD's `userId`, `institutionId`, file names, storage keys, `storageLocation`, `thumbnail`, aggregation URLs and `explainabilityUrl` are never read.
+In a complete result: `ensembleScore` = `finalScore / 100`, only for authentic, suspicious and artificial; `language` = first name in `metadata.languages` found in `RD_LANGUAGE_CODES`; `notApplicableReasons` = `metadata.reasons[].code` (RD's message text is dropped); `models` = every model except those RD marks not applicable, by the name RD returns; `heatmaps` = image only, only when the verdict is suspicious or artificial, only from non-ensemble models with status `FAKE`. RD's `userId`, `institutionId`, file names, storage keys, `storageLocation` and `thumbnail` are never read. `explainabilityUrl` and the aggregation URLs are read on the server only and never returned to the browser (see "Result detail" below).
 
 **Errors** (`src/lib/rd/errors.ts`, `src/lib/api/respond.ts`). Every failure is `{ error: { code, message } }` with a fixed message, and every response is `Cache-Control: no-store`.
 
@@ -200,17 +200,44 @@ Intake ─ validateFile / validateText / validateLink ─▶ scanService.start  
   - "Unable to analyze": submit the kept input again
   - After a reload the input is gone, and `canRetry` is false.
 - **Abort:** each check has one AbortController. A newer check stops and removes an older one still in progress.
-- **Result:** composed only from the person's input facts and RD's analysis. For links, the media type comes from RD, and no file facts or preview are shown (Faike never copies the post). Model names are hidden until RD permits (`RD_MODEL_NAMES_PUBLIC`).
+- **Result:** composed only from the person's input facts and RD's analysis. For links, the media type comes from RD, and no file facts or preview are shown (Faike never copies the post). Model names follow `RD_MODEL_NAMES_PUBLIC` (on by the owner's instruction; decision 54).
 
-**Not built yet:** a server-side scan record; heat-map recolouring; text explainability; feedback to RD.
+### Result detail (Stage 3b, part 3)
+
+```
+GET /api/scans/{requestId} ─▶ media detail ─▶ toScanStatus ─▶ complete?
+                                                │ └─ audioRequestFor(detail) → media detail of the sound
+                                                │    (errors ignored) → analysis.sound = { verdict }
+                                                ▼
+   ScanAnalysis { verdict, ensembleScore?, language?, notApplicableReasons?, models[], heatmaps?,
+                  hasExplainability?, sound?, uploadedAt? }  ─▶ resultFromAnalysis ─▶ ScanResult
+```
+
+- **What reaches the browser.** Only `ScanAnalysis` fields. Every optional field is set only when RD supplied it, and every UI element tied to it is left out otherwise. A section with nothing in it is not rendered.
+- **Model results** (`src/lib/scan/detectors.ts`): rows from `models[]` minus the ensemble and not-applicable entries. Status first; score and description columns appear only when some row has them.
+- **Heat maps.** All usable heat maps travel as `{ model, url }`; `ScanResult.heatmaps` orders them strongest first.
+  - When an image fails to load (RD's links last 15 minutes), `scanService.refresh(id)` re-reads `GET /api/scans/{requestId}` and applies `withVisuals`, which replaces the heat map links only. The verdict, score and models are never changed.
+  - At most two refreshes per details view.
+- **Text explanation.**
+  - `GET /api/scans/{requestId}/explainability` re-reads the media detail and answers with a 302 to RD's current `explainabilityUrl` (`no-store`, `Referrer-Policy: no-referrer`). It answers 404 for other media, for a missing URL and for an unsafe id.
+  - The target comes only from RD's response, so the route is not an open redirect.
+  - The browser shows it in `<iframe sandbox="">` with a new-tab link. Faike never fetches or inserts the page.
+- **Sound of a video.** `audioRequestFor` returns RD's `audioRequestId` unless `showAudioResult` is false. The server reads that id with the same media-detail call and adds the sound verdict only when it is final. This is Faike's reading of the docs, which name the field but not how to fetch it.
+- **`aggregation.json`** (`src/lib/rd/aggregation.ts`). Only its top-level keys are documented, so nothing is mapped from it.
+  - `fetchAggregation` sends no key, refuses redirects, times out after 8 s and caps the body at 5 MB.
+  - `describeShape` reduces the JSON to keys, types, array lengths and numeric ranges.
+  - With `REALITY_DEFENDER_LOG_AGGREGATION_SHAPE=1`, the status route logs that shape for each finished check, so the real structure can be confirmed and then mapped explicitly.
+
+**Not built yet:** a server-side scan record; heat-map recolouring; timelines, audio moments and image boxes from `aggregation.json`; feedback to RD.
 
 **Open points:**
 
 - **Browser upload (CORS).** On 25 Sep 2026 the owner reported the real image flow working. From this environment a preflight on a real upload URL still showed no `Access-Control-Allow-Origin` for `https://faike.vercel.app`, so which origins RD allows needs confirming. Original check, 24 Sep 2026: RD's upload endpoint (`api.prd.realitydefender.xyz/api/files/{id}`) answers preflights with `Access-Control-Allow-Origin` only for `https://app.realitydefender.ai`. Faike's origins get none, so browsers refuse the upload. RD must add Faike's production, preview and local-development origins. Relaying files through a Route Handler would contradict decision 32.
 - **Upload URL lifetime.** RD documents a 15-minute expiry for media-detail URLs, not for the upload URL.
 - **Request id format.** Not documented. Faike accepts `[A-Za-z0-9_-]`, up to 128 characters, and fails closed otherwise.
-- **Detail data.** Segments, regions, scene timelines and text spans live in RD's `aggregation.json` (`modelMetadataUrl`), whose schema is not documented, so they are not mapped. Text explainability is a pre-signed HTML page; how to present it safely is undecided.
-- **Picture and sound.** Videos with audio carry `showAudioResult` and a separate `audioRequestId`; the flow for fetching that result is not documented.
+- **Detail data.** Segments, regions and scene timelines live in RD's `aggregation.json`, whose inner structure is not documented, so they are not mapped (capture procedure in `progress.md`). No text span data is documented.
+- **Picture and sound.** Fetching the sound result through `audioRequestId` is unconfirmed; a failure leaves the sound card out.
+- **Framing.** Whether RD's storage allows its explanation page in an iframe is unconfirmed; the new-tab link is the fallback.
 - **Access control and abuse.** A request id acts as a bearer token for its result, and the POST routes have no rate limit, so anyone can use Faike's RD quota. Both need solving before public launch (decision 38).
 - **Scan persistence.** Direct links across devices still need a server-side record of the input summary; RD holds only the analysis.
 
@@ -273,3 +300,10 @@ Intake ─ validateFile / validateText / validateLink ─▶ scanService.start  
 | 51 | Pasted text is uploaded as a `.txt` file. | RD documents no endpoint for a text body; the text limits apply unchanged. |
 | 52 | Video length is read from the file's metadata with the built-in media element. | Meets the 30-minute check without a media-processing dependency; unreadable files fall back to RD's own limit. |
 | 53 | Validation messages live in `copy.ts` (`issueCopy`), built from the config. | CLAUDE.md: copy in one place, unit-tested; values never repeated in components. |
+| 54 | Detector names shown as RD returns them (`RD_MODEL_NAMES_PUBLIC = true`), in "Model results" and the heat-map picker. Supersedes decision 45. | The product owner's instruction, 25 Sep 2026. RD's permission (HANDOFF §12.12) is still to be confirmed; one switch reverts to numbered labels. |
+| 55 | "Model results" leads with each detector's status; scores and descriptions appear only when present. RD's ensemble entry is left out of the table. | The brief: the table must stay useful if RD drops per-detector scores. The ensemble is already the overall result above it. |
+| 56 | Expired heat maps are recovered by re-reading the detail by request id and replacing only the links (`refresh`, `withVisuals`); at most two attempts. | RD's links last 15 minutes. Re-reading costs no RD check, and the verdict must never change after it is shown. |
+| 57 | Text explanations open through a redirect route in a sandboxed iframe or a new tab; never proxied or inserted. | The brief forbids `dangerouslySetInnerHTML`. The redirect always serves a fresh link; `sandbox=""` blocks scripts and navigation; Faike's origin never hosts RD's HTML. |
+| 58 | The sound result of a video is read on the server through `audioRequestId` and shown as its own card; failures are ignored. | The brief asks for picture and sound together without repeating the overall result. The fetch path is inferred from RD's docs, so it must never break the main result. |
+| 59 | Nothing is mapped from `aggregation.json` yet; a no-values shape logger behind `REALITY_DEFENDER_LOG_AGGREGATION_SHAPE` captures its structure. | CLAUDE.md forbids guessing field names, and RD documents only the top-level keys. The logger yields the real structure from one check without logging content. |
+| 60 | File details list only file name, type, detected language, source and check time. | The brief: consumer metadata only; no RD ids, storage paths or processing metadata. |

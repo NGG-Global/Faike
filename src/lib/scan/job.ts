@@ -64,6 +64,8 @@ export interface ScanJob {
   live: boolean;
   /** "rd" for a real check through Reality Defender; absent for the mock. */
   engine?: "rd";
+  /** RD's request id, kept so expired visual links can be refreshed and the text explanation opened. Not secret. */
+  requestId?: string;
   feedback?: FeedbackAnswer;
 }
 

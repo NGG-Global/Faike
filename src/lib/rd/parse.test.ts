@@ -88,7 +88,8 @@ describe("parseMediaDetail", () => {
     });
     expect(detail.models.map((model) => model.name)).toEqual(["mock-img-a", "mock-img-b", "mock-img-ensemble", "mock-vid-a"]);
     const text = JSON.stringify(detail);
-    for (const secret of ["mock-user-id-123", "mock-institution-id-456", "holiday-photo-of-anna", "original.jpg", "aggregation.json"]) {
+    // The aggregation link is kept for server use only; the adapter never passes it on (adapter tests).
+    for (const secret of ["mock-user-id-123", "mock-institution-id-456", "holiday-photo-of-anna", "original.jpg", "rd-file-name"]) {
       expect(text).not.toContain(secret);
     }
   });

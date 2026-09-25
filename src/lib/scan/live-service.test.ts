@@ -340,4 +340,65 @@ describe("live checks", () => {
     expect(socials).toBe(2);
     expect(job?.stage.name === "done" && job.stage.result.verdict).toBe("artificial");
   });
+
+  it("keeps RD's request id on the job, for refreshes and the text explanation", async () => {
+    statusFor = (id) => complete(id);
+    const { scanService, scanStore } = await load();
+    const id = scanService.start(imageInput());
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(scanStore.getJob(id)?.requestId).toBe("req-1");
+  });
+});
+
+describe("expired visual links", () => {
+  const withHeatmap = (id: string, url: string): ScanStatusResponse => ({
+    requestId: id,
+    state: "complete",
+    analysis: {
+      mediaType: "image",
+      verdict: "artificial",
+      ensembleScore: 0.92,
+      models: [{ name: "mock-a", verdict: "artificial", score: 0.9 }],
+      heatmaps: [{ model: "mock-a", url }],
+    },
+  });
+
+  it("fetches fresh links for the same request and changes nothing else", async () => {
+    let signature = "old";
+    statusFor = (id) => withHeatmap(id, `https://mock-bucket.example/h.png?sig=${signature}`);
+    const { scanService, scanStore } = await load();
+    const id = scanService.start(imageInput());
+    await vi.advanceTimersByTimeAsync(5_000);
+    const before = scanStore.getJob(id)?.stage;
+    expect(before?.name === "done" && before.result.heatmaps).toEqual([{ label: "mock-a", url: "https://mock-bucket.example/h.png?sig=old" }]);
+
+    signature = "fresh";
+    await expect(scanService.refresh(id)).resolves.toBe(true);
+    const after = scanStore.getJob(id)?.stage;
+    expect(after?.name === "done" && after.result.heatmaps).toEqual([{ label: "mock-a", url: "https://mock-bucket.example/h.png?sig=fresh" }]);
+    expect(after?.name === "done" && after.result.verdict).toBe("artificial");
+    expect(statusCalls.at(-1)).toBe("req-1");
+  });
+
+  it("never fails the check when a refresh brings nothing new or cannot be read", async () => {
+    statusFor = (id) => withHeatmap(id, "https://mock-bucket.example/h.png?sig=same");
+    const { scanService, scanStore } = await load();
+    const id = scanService.start(imageInput());
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    await expect(scanService.refresh(id)).resolves.toBe(false);
+    statusFor = () => ({ error: "upstream_error", status: 502 });
+    await expect(scanService.refresh(id)).resolves.toBe(false);
+    const stage = scanStore.getJob(id)?.stage;
+    expect(stage?.name === "done" && stage.result.verdict).toBe("artificial");
+  });
+
+  it("does nothing for checks without a request id (the mock) or not finished yet", async () => {
+    statusFor = (id) => processing(id);
+    const { scanService } = await load();
+    const id = scanService.start(imageInput());
+    await vi.advanceTimersByTimeAsync(3_000);
+    await expect(scanService.refresh(id)).resolves.toBe(false);
+    await expect(scanService.refresh("demo-photo-artificial")).resolves.toBe(false);
+  });
 });

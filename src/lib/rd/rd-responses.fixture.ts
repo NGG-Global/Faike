@@ -131,3 +131,82 @@ export function liveImageDetail(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 }
+
+export const AUDIO_REQUEST_ID = "7c1d2e3f-4a5b-4c6d-8e9f-a0b1c2d3e4f5";
+const PRESIGNED = "https://mock-bucket.s3.us-east-1.amazonaws.com";
+
+/** A voice note RD found authentic, with a detected language and an aggregation link. */
+export function audioDetail(overrides: Record<string, unknown> = {}) {
+  return {
+    requestId: REQUEST_ID,
+    uploadedDate: "2026-09-25T09:00:00.000Z",
+    mediaType: "AUDIO",
+    userId: "mock-user-id-123",
+    institutionId: "mock-institution-id-456",
+    overallStatus: "AUTHENTIC",
+    resultsSummary: { status: "AUTHENTIC", metadata: { finalScore: 12, languages: ["english"] } },
+    models: [
+      { name: "mock-aud-a", status: "AUTHENTIC", finalScore: 10 },
+      { name: "mock-aud-ensemble", status: "AUTHENTIC", finalScore: 12 },
+    ],
+    modelMetadataUrl: `${PRESIGNED}/aggregation.json?X-Amz-Expires=900`,
+    explainabilityUrl: "",
+    ...overrides,
+  };
+}
+
+/** A video whose sound RD checked as a separate request. */
+export function videoWithSoundDetail(overrides: Record<string, unknown> = {}) {
+  return {
+    requestId: REQUEST_ID,
+    uploadedDate: "2026-09-25T09:00:00.000Z",
+    mediaType: "VIDEO",
+    userId: "mock-user-id-123",
+    institutionId: "mock-institution-id-456",
+    overallStatus: "SUSPICIOUS",
+    resultsSummary: { status: "SUSPICIOUS", metadata: { finalScore: 55 } },
+    showAudioResult: "True",
+    audioRequestId: AUDIO_REQUEST_ID,
+    models: [
+      { name: "mock-vid-a", status: "SUSPICIOUS", finalScore: 60 },
+      { name: "mock-vid-b", status: "ANALYZING", finalScore: null },
+    ],
+    thumbnail: `${PRESIGNED}/thumb.jpg?X-Amz-Expires=900`,
+    modelMetadataUrl: `${PRESIGNED}/video/aggregation.json?X-Amz-Expires=900`,
+    audioModelMetadataUrl: `${PRESIGNED}/audio/aggregation.json?X-Amz-Expires=900`,
+    explainabilityUrl: "",
+    ...overrides,
+  };
+}
+
+/** The separate check of that video's sound. */
+export function soundDetail(status = "FAKE") {
+  return {
+    requestId: AUDIO_REQUEST_ID,
+    mediaType: "AUDIO",
+    overallStatus: status,
+    resultsSummary: status === "ANALYZING" ? null : { status, metadata: { finalScore: 81 } },
+    models: [],
+  };
+}
+
+/** A text check with RD's explanation page. */
+export function textDetail(overrides: Record<string, unknown> = {}) {
+  return {
+    requestId: REQUEST_ID,
+    uploadedDate: "2026-09-25T09:00:00.000Z",
+    mediaType: "TEXT",
+    userId: "mock-user-id-123",
+    institutionId: "mock-institution-id-456",
+    overallStatus: "FAKE",
+    resultsSummary: { status: "FAKE", metadata: { finalScore: 88 } },
+    models: [{ name: "mock-llm-txt", status: "FAKE", finalScore: 88 }],
+    explainabilityUrl: `${PRESIGNED}/explainability-mock-txt.html?X-Amz-Expires=900`,
+    ...overrides,
+  };
+}
+
+/** A finished result carrying nothing optional at all. */
+export function minimalDetail(mediaType: string, status = "AUTHENTIC") {
+  return { requestId: REQUEST_ID, mediaType, overallStatus: status };
+}

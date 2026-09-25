@@ -1,7 +1,5 @@
-import { MEDIA } from "@/config/media";
-import { countWords, formatBytes, formatDateTime, languageName, plural } from "@/lib/format";
 import { LANE_LABEL, laneVerdictLabel } from "@/lib/scan/copy";
-import { subjectName } from "@/lib/scan/facts";
+import { fileDetailRows } from "@/lib/scan/facts";
 import type { InputSummary } from "@/lib/scan/job";
 import type { Lane, ScanResult } from "@/lib/scan/types";
 import { cx } from "@/lib/cx";
@@ -17,7 +15,7 @@ function CardHeading({ level, children }: { level: HeadingLevel; children: strin
   return <Heading className="mb-3 text-body font-bold">{children}</Heading>;
 }
 
-/** HANDOFF §6.20. Only rows with data are shown. */
+/** HANDOFF §6.20. Consumer-facing rows only, and only those with data (fileDetailRows). */
 export function FileDetails({
   result,
   input,
@@ -27,28 +25,11 @@ export function FileDetails({
   input: InputSummary;
   headingLevel?: HeadingLevel;
 }) {
-  const { file } = result;
-  const type = [MEDIA[result.mediaType].typeLabel, file.format, file.sizeBytes !== undefined ? formatBytes(file.sizeBytes) : undefined]
-    .filter(Boolean)
-    .join(" · ");
-  const rows: [string, string][] = [
-    ["File", result.source.kind === "file" ? subjectName(result, input) : result.source.kind === "paste" ? "Pasted text" : "From a link"],
-    ["Type", type],
-  ];
-  if (file.width && file.height) rows.push(["Dimensions", `${file.width} × ${file.height} pixels`]);
-  if (result.mediaType === "text" && input.text) {
-    const words = countWords(input.text);
-    rows.push(["Length", `${words.toLocaleString("en")} ${plural(words, "word")}`]);
-  }
-  if (result.language) rows.push(["Language", `${languageName(result.language)} (detected)`]);
-  if (result.source.kind === "link" && result.source.platform) rows.push(["Source", result.source.platform]);
-  rows.push(["Checked", formatDateTime(result.checkedAt)]);
-
   return (
     <section className="rounded-lg bg-surface p-6">
       <CardHeading level={headingLevel}>File details</CardHeading>
       <dl>
-        {rows.map(([label, value]) => (
+        {fileDetailRows(result, input).map(([label, value]) => (
           <div key={label} className="mb-3.5 last:mb-0">
             <dt className="text-caption text-muted">{label}</dt>
             <dd className="mt-0.5 text-ui font-semibold break-words">{value}</dd>
@@ -94,13 +75,19 @@ export function SourceCard({ result, headingLevel = 2 }: { result: ScanResult; h
   );
 }
 
-/** HANDOFF §7.5 video: picture vs sound ("Picture: looks real · Sound: some signals"). */
+/**
+ * HANDOFF §7.5 video: picture vs sound ("Picture: looks real · Sound: some
+ * signals"). With real data RD reports the sound as its own check beside
+ * the overall result, so the card may show the sound alone.
+ */
 export function LaneSummaryCard({ result, headingLevel = 2 }: { result: ScanResult; headingLevel?: HeadingLevel }) {
   const lanes = (["picture", "sound"] as Lane[]).filter((lane) => result.partial?.[lane]);
   if (!lanes.length) return null;
+  const soundOnly = lanes.length === 1 && lanes[0] === "sound";
   return (
     <section className="rounded-lg bg-surface p-6">
-      <CardHeading level={headingLevel}>Picture and sound</CardHeading>
+      <CardHeading level={headingLevel}>{lanes.length === 2 ? "Picture and sound" : soundOnly ? "Sound check" : LANE_LABEL[lanes[0]]}</CardHeading>
+      {soundOnly ? <p className="-mt-1.5 mb-3 text-small text-muted">Checked separately, beside the overall result.</p> : null}
       <ul className="flex flex-col gap-2.5">
         {lanes.map((lane) => {
           const value = result.partial![lane]!;

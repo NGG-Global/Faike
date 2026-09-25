@@ -2,11 +2,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   audioNotApplicableDetail,
   imageDetail,
+  soundDetail,
+  textDetail,
+  videoWithSoundDetail,
   PRESIGN_RESPONSE,
   REQUEST_ID,
   SIGNED_URL,
   SOCIAL_RESPONSE,
 } from "@/lib/rd/rd-responses.fixture";
+import { GET as getExplainability } from "./[requestId]/explainability/route";
 import { GET as getScan } from "./[requestId]/route";
 import { POST as presign } from "./presign/route";
 import { POST as social } from "./social/route";
@@ -176,5 +180,72 @@ describe("GET /api/scans/[requestId]", () => {
     stubRd(reply(200, ["not", "an", "object"]));
     const { status, body } = await read(await scan(REQUEST_ID));
     expect([status, body.error.code]).toEqual([502, "upstream_error"]);
+  });
+});
+
+describe("GET /api/scans/[requestId]: a video's separate sound check", () => {
+  it("reads the audio request and reports its verdict beside the overall one", async () => {
+    const fetch = stubRd(reply(200, videoWithSoundDetail()), reply(200, soundDetail("FAKE")));
+    const { body } = await read(await scan(REQUEST_ID));
+    expect(body.analysis).toMatchObject({ verdict: "suspicious", sound: { verdict: "artificial" } });
+    expect(String(fetch.mock.calls[1][0])).toContain("/api/media/users/7c1d2e3f-4a5b-4c6d-8e9f-a0b1c2d3e4f5");
+    expect(JSON.stringify(body)).not.toMatch(/aggregation|thumb\.jpg|audioRequestId/);
+  });
+
+  it("still answers with the overall result when the sound check cannot be read", async () => {
+    stubRd(reply(200, videoWithSoundDetail()), reply(404));
+    const { status, body } = await read(await scan(REQUEST_ID));
+    expect(status).toBe(200);
+    expect(body.analysis.verdict).toBe("suspicious");
+    expect(body.analysis).not.toHaveProperty("sound");
+  });
+});
+
+describe("GET /api/scans/[requestId]/explainability", () => {
+  function explain(requestId: string) {
+    return getExplainability(new Request(`http://localhost/api/scans/${requestId}/explainability`), { params: Promise.resolve({ requestId }) });
+  }
+
+  it("redirects to the fresh link from a new read of the media detail, every time", async () => {
+    const fetch = stubRd(
+      reply(200, textDetail({ explainabilityUrl: "https://mock-bucket.s3.amazonaws.com/e.html?sig=first" })),
+      reply(200, textDetail({ explainabilityUrl: "https://mock-bucket.s3.amazonaws.com/e.html?sig=second" })),
+    );
+    const first = await explain(REQUEST_ID);
+    const second = await explain(REQUEST_ID);
+    expect(first.status).toBe(302);
+    expect(first.headers.get("location")).toBe("https://mock-bucket.s3.amazonaws.com/e.html?sig=first");
+    expect(second.headers.get("location")).toBe("https://mock-bucket.s3.amazonaws.com/e.html?sig=second");
+    expect(first.headers.get("cache-control")).toBe("no-store");
+    expect(first.headers.get("referrer-policy")).toBe("no-referrer");
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("answers 404 when there is no explanation, or for another media type", async () => {
+    stubRd(reply(200, textDetail({ explainabilityUrl: "" })), reply(200, imageDetail({ explainabilityUrl: "https://mock.example/x.html" })));
+    expect((await explain(REQUEST_ID)).status).toBe(404);
+    expect((await explain(REQUEST_ID)).status).toBe(404);
+  });
+
+  it("refuses an unsafe id without contacting RD", async () => {
+    const fetch = stubRd();
+    expect((await explain("..%2Fx")).status).toBe(404);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe("aggregation shape logging (development aid)", () => {
+  it("logs keys and types only, and only when switched on", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    stubRd(reply(200, imageDetail()));
+    await scan(REQUEST_ID);
+    expect(info).not.toHaveBeenCalled();
+
+    vi.stubEnv("REALITY_DEFENDER_LOG_AGGREGATION_SHAPE", "1");
+    stubRd(reply(200, imageDetail()), reply(200, { bboxes: [{ x: 1, y: 2, label: "private text" }] }));
+    await scan(REQUEST_ID);
+    const logged = JSON.stringify(info.mock.calls);
+    expect(logged).toContain("bboxes");
+    expect(logged).not.toMatch(/private text|mock-bucket|X-Amz/);
   });
 });

@@ -9,6 +9,7 @@ import type { MediaType, ModelResult, Verdict } from "./types";
  *   POST /api/scans/presign      PresignRequest → PresignResponse
  *   POST /api/scans/social       SocialRequest  → SocialResponse
  *   GET  /api/scans/{requestId}  → ScanStatusResponse
+ *   GET  /api/scans/{requestId}/explainability → 302 to a fresh RD explanation page (text)
  *
  * Every failure is an ApiErrorBody with one of the codes below.
  */
@@ -75,6 +76,10 @@ export interface ScanAnalysis {
    * says expire after 15 minutes; fetch the status again for fresh ones.
    */
   heatmaps?: { model: string; url: string }[];
+  /** Text: RD returned an explanation page; the browser opens it through GET /api/scans/{requestId}/explainability. */
+  hasExplainability?: true;
+  /** Video with sound: the final verdict of RD's separate check of the extracted audio. */
+  sound?: { verdict: Verdict };
   /** ISO 8601 time RD recorded the upload. */
   uploadedAt?: string;
 }

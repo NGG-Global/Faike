@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ScanAnalysis } from "./api";
 import type { InputSummary } from "./job";
-import { resultFromAnalysis } from "./result";
+import { resultFromAnalysis, withVisuals } from "./result";
 
 const input: InputSummary = {
   kind: "file",
@@ -40,7 +40,10 @@ describe("resultFromAnalysis", () => {
       verdict: "artificial",
       ensembleScore: 0.92,
       models: analysis.models,
-      heatmapUrl: "https://mock.example/b.png",
+      heatmaps: [
+        { label: "mock-b", url: "https://mock.example/b.png" },
+        { label: "mock-a", url: "https://mock.example/a.png" },
+      ],
     });
   });
 
@@ -51,7 +54,7 @@ describe("resultFromAnalysis", () => {
       analysis: { verdict: "unable", models: [] },
       checkedAt: "2026-09-24T23:03:00.000Z",
     });
-    for (const key of ["ensembleScore", "language", "notApplicableReason", "heatmapUrl", "regions", "segments", "suitability"]) {
+    for (const key of ["ensembleScore", "language", "notApplicableReason", "heatmaps", "regions", "segments", "suitability", "partial", "hasExplainability"]) {
       expect(result, key).not.toHaveProperty(key);
     }
   });
@@ -64,5 +67,25 @@ describe("resultFromAnalysis", () => {
       checkedAt: "2026-09-24T23:03:00.000Z",
     });
     expect(result).toMatchObject({ verdict: "not_applicable", notApplicableReason: "relevance", language: "en" });
+  });
+});
+
+describe("secondary detail", () => {
+  it("carries RD's separate sound verdict and the text explanation flag", () => {
+    const result = resultFromAnalysis({
+      scanId: "abc",
+      input: { kind: "file", mediaType: "video", fileName: "clip.mp4" },
+      analysis: { verdict: "suspicious", models: [], sound: { verdict: "artificial" }, hasExplainability: true },
+      checkedAt: "2026-09-25T09:00:00.000Z",
+    });
+    expect(result).toMatchObject({ verdict: "suspicious", partial: { sound: "artificial" }, hasExplainability: true });
+  });
+
+  it("replaces only the expiring links when fresh ones arrive", () => {
+    const result = resultFromAnalysis({ scanId: "abc", input, analysis, checkedAt: "2026-09-24T23:03:00.000Z" });
+    const refreshed = withVisuals(result, { ...analysis, verdict: "authentic", heatmaps: [{ model: "mock-a", url: "https://mock.example/a2.png" }] });
+    expect(refreshed.heatmaps).toEqual([{ label: "mock-a", url: "https://mock.example/a2.png" }]);
+    expect(refreshed.verdict).toBe("artificial");
+    expect(withVisuals(result, { ...analysis, heatmaps: undefined })).not.toHaveProperty("heatmaps");
   });
 });

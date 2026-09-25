@@ -2,23 +2,30 @@
 
 import { useId } from "react";
 import { cx } from "@/lib/cx";
+import { RD_MODEL_NAMES_PUBLIC } from "@/config/rd";
+import { heatmapLabel } from "@/lib/scan/detectors";
 import type { Region } from "@/lib/scan/types";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { NumberBadge, SignalLegend } from "@/components/ui/Tags";
 
 /*
  * Image evidence (HANDOFF §7.5, derived — first pass for design review).
- * Original / Side by side / Heat map. The heat map is RD's localisation
- * image, shown with an "Overlay strength" slider; regions get rounded
- * outlines with numbered badges and can be zoomed to. The legend says the
- * overlay shows where signs were picked up, not why.
+ * Original / Side by side / Heat map. Heat maps are RD's, one per detector
+ * that flagged the image; with several, a picker names the detector. They
+ * are shown with an "Overlay strength" slider. A heat map that fails to
+ * load (its pre-signed link expired) is reported through onHeatmapError so
+ * the parent can fetch fresh links. Regions, when present, get rounded
+ * outlines with numbered badges and can be zoomed to.
  */
 
 export type ImageView = "original" | "side" | "heatmap";
 
 export function ImageEvidence({
   src,
-  heatmapUrl,
+  heatmaps,
+  heatmapIndex,
+  onHeatmapIndexChange,
+  onHeatmapError,
   regions,
   view,
   onViewChange,
@@ -28,7 +35,10 @@ export function ImageEvidence({
   onZoom,
 }: {
   src: string;
-  heatmapUrl?: string;
+  heatmaps?: { label: string; url: string }[];
+  heatmapIndex: number;
+  onHeatmapIndexChange: (index: number) => void;
+  onHeatmapError: (url: string) => void;
   regions: Region[];
   view: ImageView;
   onViewChange: (view: ImageView) => void;
@@ -38,6 +48,9 @@ export function ImageEvidence({
   onZoom: (region: Region | null) => void;
 }) {
   const sliderId = useId();
+  const pickerId = useId();
+  const heatmap = heatmaps?.[heatmapIndex] ?? heatmaps?.[0];
+  const heatmapUrl = heatmap?.url;
   const options = heatmapUrl
     ? ([
         { value: "original", label: "Original" },
@@ -66,7 +79,7 @@ export function ImageEvidence({
             <figcaption className="mt-2 text-small font-semibold text-muted">Original</figcaption>
           </figure>
           <figure>
-            <Frame src={src} heatmapUrl={heatmapUrl} overlay={overlay} />
+            <Frame src={src} heatmapUrl={heatmapUrl} overlay={overlay} onHeatmapError={onHeatmapError} />
             <figcaption className="mt-2 text-small font-semibold text-muted">Heat map</figcaption>
           </figure>
         </div>
@@ -74,6 +87,7 @@ export function ImageEvidence({
         <Frame
           src={src}
           heatmapUrl={view === "heatmap" ? heatmapUrl : undefined}
+          onHeatmapError={onHeatmapError}
           overlay={overlay}
           regions={view === "original" ? regions : []}
           zoom={view === "original" ? zoom : null}
@@ -81,9 +95,31 @@ export function ImageEvidence({
         />
       )}
 
-      {heatmapUrl && view !== "original" ? (
-        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-small text-muted">The heat map shows where signs of AI were picked up, not why.</p>
+      {heatmaps && heatmap && view !== "original" ? (
+        <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <p className="text-small text-muted">
+            The heat map shows where signs of AI were picked up, not why.
+            {heatmaps.length === 1 && RD_MODEL_NAMES_PUBLIC ? ` From ${heatmap.label}.` : ""}
+          </p>
+          {heatmaps.length > 1 ? (
+            <div className="flex items-center gap-3">
+              <label htmlFor={pickerId} className="text-small font-semibold whitespace-nowrap">
+                {RD_MODEL_NAMES_PUBLIC ? "Heat map from" : "Heat map"}
+              </label>
+              <select
+                id={pickerId}
+                value={heatmaps.indexOf(heatmap)}
+                onChange={(event) => onHeatmapIndexChange(Number(event.target.value))}
+                className="h-11 min-w-0 flex-1 rounded-pill border-[1.5px] border-line-strong bg-surface px-4 text-small font-semibold lg:flex-none"
+              >
+                {heatmaps.map((item, index) => (
+                  <option key={item.label} value={index}>
+                    {heatmapLabel(item.label, index)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
           <div className="flex items-center gap-3">
             <label htmlFor={sliderId} className="text-small font-semibold whitespace-nowrap">
               Overlay strength
@@ -108,6 +144,7 @@ export function ImageEvidence({
 function Frame({
   src,
   heatmapUrl,
+  onHeatmapError,
   overlay = 70,
   regions = [],
   zoom = null,
@@ -115,6 +152,7 @@ function Frame({
 }: {
   src: string;
   heatmapUrl?: string;
+  onHeatmapError?: (url: string) => void;
   overlay?: number;
   regions?: Region[];
   zoom?: Region | null;
@@ -138,6 +176,7 @@ function Frame({
           <img
             src={heatmapUrl}
             alt=""
+            onError={() => onHeatmapError?.(heatmapUrl)}
             className="pointer-events-none absolute inset-0 size-full"
             style={{ opacity: overlay / 100 }}
           />

@@ -21,7 +21,6 @@ export function resultFromAnalysis(args: {
   checkedAt: string;
 }): ScanResult {
   const { scanId, input, analysis, checkedAt } = args;
-  const heatmapUrl = strongestHeatmap(analysis);
 
   const result: ScanResult = {
     scanId,
@@ -47,19 +46,34 @@ export function resultFromAnalysis(args: {
   if (analysis.ensembleScore !== undefined) result.ensembleScore = analysis.ensembleScore;
   if (analysis.language) result.language = analysis.language;
   if (analysis.notApplicableReasons?.length) result.notApplicableReason = analysis.notApplicableReasons[0];
-  if (heatmapUrl) result.heatmapUrl = heatmapUrl;
-  return result;
+  if (analysis.hasExplainability) result.hasExplainability = true;
+  // RD's separate check of a video's sound, beside (never instead of) the overall verdict.
+  if (analysis.sound) result.partial = { sound: analysis.sound.verdict };
+  return withVisuals(result, analysis);
 }
 
 /**
- * The interface shows one heat map. RD returns one per model that flagged
- * the image; Faike shows the one from the model with the highest output
- * score, and no model name travels with it.
+ * Replaces the expiring visual links (heat maps) with fresh ones from a new
+ * read of the same request, leaving the verdict and everything else as it
+ * was. Used when a pre-signed link has expired.
  */
-function strongestHeatmap(analysis: ScanAnalysis): string | undefined {
+export function withVisuals(result: ScanResult, analysis: ScanAnalysis): ScanResult {
+  const heatmaps = orderedHeatmaps(analysis);
+  const next: ScanResult = { ...result };
+  if (heatmaps.length) next.heatmaps = heatmaps;
+  else delete next.heatmaps;
+  return next;
+}
+
+/**
+ * Every usable heat map RD returned (one per detector that flagged the
+ * image), strongest detector first; detectors without a score keep RD's order.
+ */
+function orderedHeatmaps(analysis: ScanAnalysis): { label: string; url: string }[] {
   const scores = new Map(analysis.models.map((model) => [model.name, model.score ?? -1]));
-  const [best] = [...(analysis.heatmaps ?? [])].sort((a, b) => (scores.get(b.model) ?? -1) - (scores.get(a.model) ?? -1));
-  return best?.url;
+  return [...(analysis.heatmaps ?? [])]
+    .sort((a, b) => (scores.get(b.model) ?? -1) - (scores.get(a.model) ?? -1))
+    .map((heatmap) => ({ label: heatmap.model, url: heatmap.url }));
 }
 
 function compact<T extends object>(value: T): T {

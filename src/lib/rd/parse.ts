@@ -80,7 +80,19 @@ export function parseMediaDetail(json: unknown, trustedOrigin?: string): RdMedia
     resultsSummary: parseSummary(json.resultsSummary),
     models: Array.isArray(json.models) ? json.models.flatMap(parseModel) : [],
     heatmaps: parseHeatmaps(json.heatmaps, trustedOrigin),
+    explainabilityUrl: optUrl(json.explainabilityUrl, trustedOrigin),
+    modelMetadataUrl: optUrl(json.modelMetadataUrl, trustedOrigin),
+    audioModelMetadataUrl: optUrl(json.audioModelMetadataUrl, trustedOrigin),
+    showAudioResult: optFlag(json.showAudioResult),
+    audioRequestId: isRequestId(json.audioRequestId) ? json.audioRequestId : undefined,
   };
+}
+
+/** A boolean, or the strings "true"/"false" in any case (RD's docs show "True, False"). */
+function optFlag(value: unknown): boolean | undefined {
+  if (typeof value === "boolean") return value;
+  const text = optString(value)?.toLowerCase();
+  return text === "true" ? true : text === "false" ? false : undefined;
 }
 
 function parseSummary(value: unknown): RdResultsSummary | undefined {

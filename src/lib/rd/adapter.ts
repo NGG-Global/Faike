@@ -28,7 +28,22 @@ const MEDIA_TYPES = new Map<string, MediaType>([
   ["TEXT", "text"],
 ]);
 
-export function toScanStatus(requestId: string, detail: RdMediaDetail): ScanStatusResponse {
+/**
+ * The request id of RD's separate check of a video's sound, if RD made one.
+ * Fetching its media detail with the same endpoint is Faike's reading of
+ * the docs ("populated if showAudioResult is True"); failures are ignored.
+ */
+export function audioRequestFor(detail: RdMediaDetail): string | undefined {
+  return detail.showAudioResult !== false ? detail.audioRequestId : undefined;
+}
+
+/** Final status of a result: the ensemble summary first, then the overall status (RD SDK). */
+function finalStatus(detail: RdMediaDetail): string | undefined {
+  const status = detail.resultsSummary?.status ?? detail.overallStatus;
+  return status !== undefined && !IN_PROGRESS.has(status) ? status : undefined;
+}
+
+export function toScanStatus(requestId: string, detail: RdMediaDetail, audio?: RdMediaDetail): ScanStatusResponse {
   // RD documents the socialLink* fields for social submissions only; a
   // file upload can carry them too (a live image check read "retrieving"),
   // so they count only when a link was submitted.
@@ -48,10 +63,10 @@ export function toScanStatus(requestId: string, detail: RdMediaDetail): ScanStat
     };
   }
 
-  return { requestId, state: "complete", analysis: toAnalysis(status, mediaType, detail) };
+  return { requestId, state: "complete", analysis: toAnalysis(status, mediaType, detail, audio) };
 }
 
-function toAnalysis(status: string, mediaType: MediaType | undefined, detail: RdMediaDetail): ScanAnalysis {
+function toAnalysis(status: string, mediaType: MediaType | undefined, detail: RdMediaDetail, audio?: RdMediaDetail): ScanAnalysis {
   const verdict = verdictFromRd(status);
   const metadata = detail.resultsSummary?.metadata;
 
@@ -62,6 +77,10 @@ function toAnalysis(status: string, mediaType: MediaType | undefined, detail: Rd
   // when the ensemble itself found signs; it never contradicts the verdict.
   const heatmaps =
     mediaType === "image" && (verdict === "suspicious" || verdict === "artificial") ? usableHeatmaps(detail) : undefined;
+  // RD documents the explanation page for text only.
+  const hasExplainability = mediaType === "text" && detail.explainabilityUrl !== undefined;
+  // The sound check is secondary detail beside the overall verdict, never a replacement.
+  const soundStatus = audio ? finalStatus(audio) : undefined;
 
   return {
     verdict,
@@ -71,6 +90,8 @@ function toAnalysis(status: string, mediaType: MediaType | undefined, detail: Rd
     ...(language && { language }),
     ...(reasons?.length && { notApplicableReasons: reasons }),
     ...(heatmaps?.length && { heatmaps }),
+    ...(hasExplainability && { hasExplainability: true as const }),
+    ...(soundStatus && { sound: { verdict: verdictFromRd(soundStatus) } }),
     ...(detail.uploadedDate && { uploadedAt: detail.uploadedDate }),
   };
 }
@@ -84,12 +105,18 @@ function languageCode(name: string): string | undefined {
   return Object.hasOwn(RD_LANGUAGE_CODES, name) ? RD_LANGUAGE_CODES[name] : undefined;
 }
 
-/** Models that do not apply are left out, as RD's SDK does. */
+/**
+ * The individual detectors behind the overall result. Left out: models that
+ * do not apply (as RD's SDK does) and the ensemble entry, which is the
+ * overall result itself. A detector still running has no verdict.
+ */
 function toModel(model: RdModelResult): ModelResult[] {
   if (model.status === "NOT_APPLICABLE" || model.code === "not_applicable") return [];
-  const verdict = model.status && !IN_PROGRESS.has(model.status) ? verdictFromRd(model.status) : undefined;
+  if (RD_ENSEMBLE_MODEL_PATTERN.test(model.name)) return [];
+  const pending = model.status !== undefined && IN_PROGRESS.has(model.status);
+  const verdict = model.status && !pending ? verdictFromRd(model.status) : undefined;
   const score = scoreFrom(model.finalScore);
-  return [{ name: model.name, ...(verdict && { verdict }), ...(score !== undefined && { score }) }];
+  return [{ name: model.name, ...(verdict && { verdict }), ...(score !== undefined && { score }), ...(pending && { pending: true as const }) }];
 }
 
 /**

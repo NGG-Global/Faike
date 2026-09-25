@@ -42,6 +42,8 @@ export interface RdClientOptions extends RdClientConfig {
 }
 
 export interface RdClient {
+  /** The configured API origin; pre-signed URLs there may be plain http (local stubs). */
+  readonly origin: string;
   requestPresignedUpload(fileName: string): Promise<RdPresignedUploadResponse>;
   submitSocialLink(socialLink: string): Promise<RdSocialUploadResponse>;
   getMediaDetail(requestId: string): Promise<RdMediaDetail>;
@@ -145,6 +147,8 @@ export function createRdClient(options: RdClientOptions): RdClient {
   }
 
   return {
+    origin: trustedOrigin,
+
     async requestPresignedUpload(fileName) {
       return parsePresignedUploadResponse(await request("POST", PATHS.presignedUpload, { fileName }), trustedOrigin);
     },

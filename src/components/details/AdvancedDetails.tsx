@@ -1,71 +1,70 @@
-import { MEDIA } from "@/config/media";
-import { RD_MODEL_NAMES_PUBLIC } from "@/config/rd";
-import { formatDuration, formatScore } from "@/lib/format";
-import { VERDICT_LABEL } from "@/lib/scan/copy";
+import { formatScore } from "@/lib/format";
+import { detectorTable } from "@/lib/scan/detectors";
 import type { ScanResult } from "@/lib/scan/types";
 
 /*
  * Collapsed sections of the accordion (HANDOFF §6.21): model results and
  * technical details. The only place technical vocabulary appears. Scores
- * are labelled as model output scores, not probabilities. Model names are
- * RD data, shown only once RD permits it (§12.12, RD_MODEL_NAMES_PUBLIC).
+ * are labelled as model output scores, not probabilities. Detector names
+ * are RD data (RD_MODEL_NAMES_PUBLIC). Both sections are left out when RD
+ * returned nothing for them.
  */
 
 const SCORE_NOTE = "Scores are model output scores from 0 to 1. They are not probabilities.";
 
-function modelLabel(model: ScanResult["models"][number], index: number): { label: string; name?: string } {
-  if (!RD_MODEL_NAMES_PUBLIC) return { label: `Model ${index + 1}` };
-  return model.friendlyName ? { label: model.friendlyName, name: model.name } : { label: model.name };
-}
-
+/** The detectors behind the overall result (detectorTable). Rendered only when RD returned some. */
 export function ModelResults({ result }: { result: ScanResult }) {
-  if (!result.models.length) {
-    return <p className="text-body leading-[1.6] text-ink-soft">No individual model results were returned for this check.</p>;
-  }
-  const rows = result.models.map((model, index) => ({ model, ...modelLabel(model, index) }));
+  const { rows, showScores, showChecks } = detectorTable(result.models);
   return (
     <div>
-      <p className="mb-4 text-small text-muted">{SCORE_NOTE}</p>
+      <p className="mb-4 text-small text-muted">
+        The overall result combines these checks. Individual checks can disagree with it and with each other.
+        {showScores ? ` ${SCORE_NOTE}` : ""}
+      </p>
 
       <table className="hidden w-full border-collapse text-left text-ui sm:table">
         <thead>
           <tr className="border-b border-line text-caption text-muted">
             <th scope="col" className="py-2 pr-4 font-semibold">Model</th>
-            <th scope="col" className="py-2 pr-4 font-semibold">What it checks</th>
+            {showChecks ? <th scope="col" className="py-2 pr-4 font-semibold">What it checks</th> : null}
             <th scope="col" className="py-2 pr-4 font-semibold">Result</th>
-            <th scope="col" className="py-2 text-right font-semibold">Output score</th>
+            {showScores ? <th scope="col" className="py-2 text-right font-semibold">Output score</th> : null}
           </tr>
         </thead>
         <tbody>
-          {rows.map(({ model, label, name }) => (
-            <tr key={model.name} className="border-b border-line last:border-0">
-              <th scope="row" className="py-3 pr-4 align-top font-semibold">
-                {label}
-                {name ? <span className="block text-caption font-normal text-muted">{name}</span> : null}
+          {rows.map((row) => (
+            <tr key={row.key} className="border-b border-line last:border-0">
+              <th scope="row" className="py-3 pr-4 align-top font-semibold break-all">
+                {row.label}
+                {row.name ? <span className="block text-caption font-normal text-muted">{row.name}</span> : null}
               </th>
-              <td className="py-3 pr-4 align-top text-ink-soft">{model.checks ?? "—"}</td>
-              <td className="py-3 pr-4 align-top">{model.verdict ? VERDICT_LABEL[model.verdict] : "—"}</td>
-              <td className="py-3 text-right align-top tabular-nums">{model.score !== undefined ? formatScore(model.score) : "—"}</td>
+              {showChecks ? <td className="py-3 pr-4 align-top text-ink-soft">{row.checks ?? "Not described"}</td> : null}
+              <td className="py-3 pr-4 align-top">{row.result}</td>
+              {showScores ? (
+                <td className="py-3 text-right align-top tabular-nums">{row.score !== undefined ? formatScore(row.score) : "Not given"}</td>
+              ) : null}
             </tr>
           ))}
         </tbody>
       </table>
 
       <ul className="flex flex-col gap-2.5 sm:hidden">
-        {rows.map(({ model, label, name }) => (
-          <li key={model.name} className="rounded-row bg-surface-sunk p-4">
-            <p className="text-ui font-semibold">{label}</p>
-            {name ? <p className="text-caption text-muted">{name}</p> : null}
-            {model.checks ? <p className="mt-1.5 text-small text-ink-soft">{model.checks}</p> : null}
+        {rows.map((row) => (
+          <li key={row.key} className="rounded-row bg-surface-sunk p-4">
+            <p className="text-ui font-semibold break-all">{row.label}</p>
+            {row.name ? <p className="text-caption text-muted">{row.name}</p> : null}
+            {row.checks ? <p className="mt-1.5 text-small text-ink-soft">{row.checks}</p> : null}
             <dl className="mt-2 flex gap-6 text-small">
               <div>
                 <dt className="text-muted">Result</dt>
-                <dd className="font-semibold">{model.verdict ? VERDICT_LABEL[model.verdict] : "—"}</dd>
+                <dd className="font-semibold">{row.result}</dd>
               </div>
-              <div>
-                <dt className="text-muted">Output score</dt>
-                <dd className="font-semibold tabular-nums">{model.score !== undefined ? formatScore(model.score) : "—"}</dd>
-              </div>
+              {row.score !== undefined ? (
+                <div>
+                  <dt className="text-muted">Output score</dt>
+                  <dd className="font-semibold tabular-nums">{formatScore(row.score)}</dd>
+                </div>
+              ) : null}
             </dl>
           </li>
         ))}
@@ -74,33 +73,19 @@ export function ModelResults({ result }: { result: ScanResult }) {
   );
 }
 
+/**
+ * The overall output score, the only number shown for a result, and only
+ * when RD returned a valid one (the section is left out otherwise).
+ */
 export function TechnicalDetails({ result }: { result: ScanResult }) {
-  const { file } = result;
-  const rows: [string, string][] = [
-    ["Check ID", result.scanId],
-    ["Checked at", result.checkedAt],
-    ["Media type", `${MEDIA[result.mediaType].typeLabel} (${result.mediaType})`],
-    ["Input", result.source.kind === "paste" ? "Pasted text" : result.source.kind === "link" ? "Social link" : "File upload"],
-  ];
-  if (file.format) rows.push(["Format", file.format]);
-  if (file.sizeBytes !== undefined) rows.push(["Size", `${file.sizeBytes.toLocaleString("en")} bytes`]);
-  if (file.durationSec !== undefined) rows.push(["Duration", `${formatDuration(file.durationSec)} (${file.durationSec.toFixed(1)} s)`]);
-  if (file.width && file.height) rows.push(["Dimensions", `${file.width} × ${file.height} px`]);
-  if (result.language) rows.push(["Language code", result.language]);
-  if (result.ensembleScore !== undefined) {
-    rows.push(["Overall output score", `${formatScore(result.ensembleScore)} (ensemble; not a probability)`]);
-  }
-  rows.push(["Models reporting", String(result.models.length)]);
-  if (result.source.url) rows.push(["Link", result.source.url]);
-
+  if (result.ensembleScore === undefined) return null;
   return (
-    <dl className="grid gap-x-8 gap-y-3.5 sm:grid-cols-2">
-      {rows.map(([label, value]) => (
-        <div key={label}>
-          <dt className="text-caption text-muted">{label}</dt>
-          <dd className="mt-0.5 text-ui font-semibold break-all">{value}</dd>
-        </div>
-      ))}
+    <dl>
+      <dt className="text-caption text-muted">Overall output score</dt>
+      <dd className="mt-0.5 text-ui font-semibold tabular-nums">{formatScore(result.ensembleScore)}</dd>
+      <dd className="mt-2 max-w-[640px] text-small text-muted">
+        From 0 to 1, for the combined checks. It is a model output score, not a probability, and not proof.
+      </dd>
     </dl>
   );
 }

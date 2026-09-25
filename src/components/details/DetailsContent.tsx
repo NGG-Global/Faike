@@ -2,6 +2,7 @@
 
 import { useRef, useState, type ReactNode } from "react";
 import { useMediaPlayback } from "@/hooks/useMediaPlayback";
+import { scanService } from "@/lib/scan/client";
 import { cx } from "@/lib/cx";
 import { formatDuration, plural } from "@/lib/format";
 import { flaggedDescription, LANE_LABEL, whyText } from "@/lib/scan/copy";
@@ -17,6 +18,7 @@ import { AudioEvidence } from "./AudioEvidence";
 import { FlaggedList, type FlaggedItem } from "./FlaggedList";
 import { ImageEvidence, type ImageView } from "./ImageEvidence";
 import { spanElementId, TextEvidence } from "./TextEvidence";
+import { TextExplanation } from "./TextExplanation";
 import { VideoEvidence } from "./VideoEvidence";
 
 /*
@@ -66,18 +68,20 @@ export function DetailsContent({ job, result, inline = false }: { job: ScanJob; 
             defaultOpen: true,
             content: <p className="max-w-[860px] text-body leading-[1.6] text-ink-soft">{whyText(result)}</p>,
           },
-          {
-            id: "models",
-            title: "Model results",
-            caption: `For the curious · ${models} ${plural(models, "model")}`,
-            content: <ModelResults result={result} />,
-          },
-          {
-            id: "technical",
-            title: "Technical details",
-            caption: "Metadata and check information",
-            content: <TechnicalDetails result={result} />,
-          },
+          // Detector results and the score are secondary: collapsed, and left out when RD returned none.
+          ...(models
+            ? [
+                {
+                  id: "models",
+                  title: "Model results",
+                  caption: `For the curious · ${models} ${plural(models, "model")}`,
+                  content: <ModelResults result={result} />,
+                },
+              ]
+            : []),
+          ...(result.ensembleScore !== undefined
+            ? [{ id: "technical", title: "Technical details", caption: "Overall output score", content: <TechnicalDetails result={result} /> }]
+            : []),
         ]}
       />
       <FeedbackButtons job={job} withNotSure />
@@ -214,11 +218,29 @@ function position(region: Region): string {
   return vertical === "Middle" && horizontal === "centre" ? "Centre" : `${vertical} ${horizontal}`;
 }
 
+/** At most this many fresh reads of the check when a heat map link has expired. */
+const MAX_HEATMAP_REFRESHES = 2;
+
 function ImageDetails({ job, result, level }: { job: ScanJob; result: ScanResult; level: HeadingLevel }) {
   const [view, setView] = useState<ImageView>("original");
   const [overlay, setOverlay] = useState(70);
   const [zoom, setZoom] = useState<Region | null>(null);
+  const [heatmapIndex, setHeatmapIndex] = useState(0);
+  const [refreshes, setRefreshes] = useState(0);
+  const [heatmapFailed, setHeatmapFailed] = useState(false);
   const evidenceRef = useRef<HTMLDivElement>(null);
+  const heatmaps = heatmapFailed ? undefined : result.heatmaps;
+
+  // An expired pre-signed link: read the check again for fresh links. The
+  // result itself stays as it is; after repeated failures the heat map is
+  // simply left out.
+  function onHeatmapError() {
+    if (refreshes >= MAX_HEATMAP_REFRESHES) return setHeatmapFailed(true);
+    setRefreshes((count) => count + 1);
+    void scanService.refresh(job.id).then((changed) => {
+      if (!changed) setHeatmapFailed(true);
+    });
+  }
   const regions = result.regions ?? [];
   const src = job.media?.src;
 
@@ -247,7 +269,10 @@ function ImageDetails({ job, result, level }: { job: ScanJob; result: ScanResult
           {src ? (
             <ImageEvidence
               src={src}
-              heatmapUrl={result.heatmapUrl}
+              heatmaps={heatmaps}
+              heatmapIndex={heatmapIndex}
+              onHeatmapIndexChange={setHeatmapIndex}
+              onHeatmapError={onHeatmapError}
               regions={regions}
               view={view}
               onViewChange={(next) => {
@@ -262,6 +287,9 @@ function ImageDetails({ job, result, level }: { job: ScanJob; result: ScanResult
           ) : (
             <MediaUnavailable kind={job.input.kind} />
           )}
+          {src && heatmapFailed ? (
+            <p className="mt-2 text-small text-muted">The heat map couldn&apos;t be loaded right now. The result is unchanged.</p>
+          ) : null}
         </div>
       }
       list={
@@ -309,7 +337,12 @@ function TextDetails({ job, result, level }: { job: ScanJob; result: ScanResult;
 
   return (
     <Layout
-      evidence={<TextEvidence scanId={result.scanId} text={text} spans={result.textSpans} />}
+      evidence={
+        <div className="flex flex-col gap-5">
+          <TextEvidence scanId={result.scanId} text={text} spans={result.textSpans} />
+          {result.hasExplainability && job.requestId ? <TextExplanation requestId={job.requestId} headingLevel={level} /> : null}
+        </div>
+      }
       list={
         result.textSpans ? (
           <FlaggedList

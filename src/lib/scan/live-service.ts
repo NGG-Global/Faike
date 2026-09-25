@@ -1,7 +1,7 @@
 import { getScanStatus, presignUpload, putFile, submitSocialLink } from "./api-client";
 import type { Draft, InputSummary, MediaRef, ScanJob, ScanStage } from "./job";
 import { pollScan } from "./poll";
-import { resultFromAnalysis } from "./result";
+import { resultFromAnalysis, withVisuals } from "./result";
 import type { ScanService } from "./service";
 import { scanStore } from "./store";
 
@@ -69,6 +69,7 @@ async function submit(id: string) {
   const requestId = check.submission.kind === "file" ? await uploadFile(id, check.submission.file, signal) : await submitLink(id, check.submission.url, signal);
   if (!requestId || signal.aborted) return;
   check.requestId = requestId;
+  scanStore.updateJob(id, (job) => ({ ...job, requestId }));
   await analyse(id);
 }
 
@@ -210,6 +211,20 @@ export const liveScanService: ScanService & { abortInProgress(): void } = {
 
   canRetry(id) {
     return checks.has(id);
+  },
+
+  /** Resolves true only when fresh links replaced the old ones; the verdict is never touched. */
+  async refresh(id) {
+    const job = scanStore.getJob(id);
+    if (!job?.requestId || job.stage.name !== "done") return false;
+    const fresh = await getScanStatus(job.requestId, new AbortController().signal);
+    if (!fresh.ok || fresh.data.state !== "complete") return false;
+    const { analysis } = fresh.data;
+    const before = JSON.stringify(job.stage.result.heatmaps ?? []);
+    const result = withVisuals(job.stage.result, analysis);
+    if (JSON.stringify(result.heatmaps ?? []) === before) return false;
+    scanStore.updateJob(id, (current) => (current.stage.name === "done" ? { ...current, stage: { name: "done", result } } : current));
+    return true;
   },
 
   async sendFeedback(id, answer) {

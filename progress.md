@@ -1,6 +1,6 @@
 # Faike — progress
 
-Last updated: 25 Sep 2026 (Stage 3b, every input live)
+Last updated: 25 Sep 2026 (Stage 3b, result detail from real RD data)
 
 ## Stage 1 — Foundation ✅
 
@@ -69,14 +69,14 @@ Built against RD's current documentation (checked 24 Sep 2026: API Quickstart, A
 | 2 | Calibrated thresholds for the meter | **Open.** None published; placeholders stay. |
 | 3 | Social platforms | **Answered.** Facebook, Instagram, Twitter/X, YouTube, TikTok, Threads. |
 | 4 | NOT_APPLICABLE reason codes | **Answered for images and audio.** Image: `relevance`. Audio: `duration`, `detected` (dial tone or music), `cross-talk` (more than one speaker), `quality`, `language`. Video: none. Copy written for each (Stage 3b). |
-| 5 | Audio time segments | **Open.** Only in `aggregation.json` (`chunks`), whose schema is not documented. |
-| 6 | Video regions / segments; picture and sound | **Partly.** Timelines only in `aggregation.json` (undocumented). Sound is a separate result (`showAudioResult`, `audioRequestId`). |
-| 7 | Image heat map / regions | **Partly.** Per-model heat map PNGs (non-ensemble `FAKE` models only, 15-minute URLs); boxes only in `aggregation.json` (undocumented). |
-| 8 | Text span explainability | **Partly.** A pre-signed HTML page (`explainabilityUrl`); no span data documented. |
+| 5 | Audio time segments | **Open.** Only in `aggregation.json` (`chunks`). RD documents the top-level keys only, so no moments are drawn. The structure can now be captured from one check (Stage 3b, part 3). |
+| 6 | Video regions / segments; picture and sound | **Partly.** Timelines only in `aggregation.json` (same status as 5). The separate sound result is now shown beside the overall verdict (read through `audioRequestId`; see part 3 for what is assumed). |
+| 7 | Image heat map / regions | **Partly, built.** Every usable heat map is shown, with a picker and recovery from expired links. Boxes only in `aggregation.json` (same status as 5). |
+| 8 | Text span explainability | **Partly, built.** RD's pre-signed HTML page is offered in a sandboxed frame and a new tab; no span data is documented. |
 | 9 | Language detection | **Answered.** `metadata.languages`, lower-case names (English, Spanish and Portuguese named as examples). |
 | 10 | Formats and limits | **Answered.** Images jpg/jpeg/png/gif/webp ≤ 50 MB; audio mp3/wav/m4a/aac/ogg/flac/alac ≤ 20 MB; video mp4/mov ≤ 250 MB and 30 min; text txt ≤ 900 KB. Matches §9.3. |
 | 11 | Progress, cancellation, polling | **Partly.** No percentages or cancellation documented; poll (SDK default every 5 s) or webhook (setup not documented). In-progress statuses: `ANALYZING`, `DOWNLOADING`. |
-| 12 | Showing model names | **Open.** RD says names are not stable, and its SDK marks per-model results as deprecated. Ask RD whether end users may see them. |
+| 12 | Showing model names | **Open with RD; shown by the owner's instruction.** RD says names are not stable, and its SDK marks per-model results as deprecated. Names are now shown as RD returns them (`RD_MODEL_NAMES_PUBLIC = true`, 25 Sep 2026). Still to ask RD whether end users may see them. |
 
 ## Stage 3b, part 1 — Real image checks ✅ (see the CORS status below)
 
@@ -93,7 +93,7 @@ Image files now run for real: **presign → the browser PUTs the file straight t
 - [x] `src/lib/scan/api-client.ts`: calls Faike's routes (responses validated) and uploads with XMLHttpRequest for real upload progress. The browser sends no key.
 - [x] `src/lib/scan/poll.ts`: polling. One request at a time; stops at the first final state; 2 s waits, 4 s after 30 s, doubled after an error; fails after 3 errors in a row; 3-minute deadline; aborts immediately on cancel or a newer check. Values in `src/config/polling.ts`.
 - [x] A model still `ANALYZING` never holds up or fails a check: the verdict comes from the ensemble, and such a model is shown without a result.
-- [x] `src/lib/scan/result.ts` builds `ScanResult` from the person's file facts plus RD's analysis only. No regions, segments or reasons are invented; one heat map is shown, from the flagged model with the highest score.
+- [x] `src/lib/scan/result.ts` builds `ScanResult` from the person's file facts plus RD's analysis only. No regions, segments or reasons are invented; one heat map is shown, from the flagged model with the highest score (part 3 shows them all).
 - [x] Retry: after an upload failure it starts over; after a status failure or the deadline it keeps waiting on the same request (no new upload); after "Unable to analyze" it sends the kept file again as a new check. A real check whose file is gone (after a reload) offers only "Check a different file".
 - [x] A new check stops any real check still uploading or analysing and removes it.
 - [x] The browser now also requires one of RD's extensions, so HEIC, AVIF or WebM get the "can't check this" card before any upload.
@@ -117,7 +117,7 @@ Image files now run for real: **presign → the browser PUTs the file straight t
 
 **Decisions** (derived; see also the table below):
 - "This is taking longer than usual" state for the polling deadline, with Try again (the handoff has no such state).
-- Model names hidden behind `RD_MODEL_NAMES_PUBLIC = false` until RD confirms end users may see them (HANDOFF §12.12); rows read "Model 1", "Model 2"…
+- Model names hidden behind `RD_MODEL_NAMES_PUBLIC = false` until RD confirms end users may see them (HANDOFF §12.12); rows read "Model 1", "Model 2"… (Superseded in part 3: shown by the owner's instruction.)
 - The handoff's Unable copy "try again without re-uploading" stays: the person does not choose the file again, but the browser does send it again, because RD documents no way to re-run a check.
 - The example photo on the home page is now a real check and uses RD quota each time.
 
@@ -160,15 +160,74 @@ The mock now serves only the `/mock` review tools and the demo checks.
   - a real browser upload from `faike.vercel.app` (see the CORS note above)
   - the video test file is the bundled WebM clip renamed `.mp4` (no ffmpeg here); a genuine MP4/MOV should be tried on the deployment
 
+## Stage 3b, part 3 — Result detail from real RD data ✅
+
+The remaining mock visualisation is replaced by what RD returns. Where RD returns nothing, or returns data whose structure is not documented, the section is left out rather than drawn empty or guessed.
+
+**Built.**
+- [x] **Overall result** from RD's ensemble (`resultsSummary.status`, falling back to `overallStatus`), with the brief's five labels. No wording states that a file is real or fake.
+- [x] **Score:** `resultsSummary.metadata.finalScore` is shown only when it is a number from 0 to 100 and the verdict is authentic, suspicious or artificial. It is labelled "Overall output score" in "Technical details", and that section is left out when there is no score. Nothing is averaged from the individual detectors, and no 0, 50 or 100 % is filled in.
+- [x] **Model results** (collapsed by default):
+  - one row per detector, named from RD's response
+  - RD's ensemble entry and detectors RD marks not applicable are left out
+  - a detector still `ANALYZING` reads "Still running"
+  - the status is the main column; the score column appears only when at least one detector has a score, so the table stays useful if RD drops per-detector scores
+- [x] **Image heat maps:**
+  - every usable heat map (non-ensemble detectors that flagged the image, only with a suspicious or artificial verdict), strongest first
+  - the existing original / heat map / overlay control, plus a "Heat map from" picker when there is more than one, and "From {detector}." when there is one
+  - **expired links:** if the heat map fails to load, Faike re-reads the check's detail by request id and swaps in the fresh links. It never re-runs the check or changes the verdict. After two unsuccessful refreshes, a note says the heat map couldn't be loaded and the result is unchanged.
+- [x] **Video with sound:** when RD analysed the sound separately (`showAudioResult` not false, plus a valid `audioRequestId`), the server reads that result too, and the details show a "Sound check" card beside the overall result, without repeating the overall verdict. If the sound result can't be read, the overall result still stands.
+- [x] **Text explanation:** when RD returns `explainabilityUrl` for text, the details offer "Detailed explanation". It loads in an iframe with `sandbox=""` (no scripts, forms or navigation), with a link to open it in a new tab, and the Faike summary stays around it.
+  - The page is never copied into Faike's HTML and there is no `dangerouslySetInnerHTML`.
+  - The frame and the link point at `GET /api/scans/{requestId}/explainability`, which re-reads the detail and redirects to a fresh URL each time, so an expired link cannot be served.
+- [x] **File details** show only file name, type, detected language, source (for links) and check time. No RD ids, storage paths or processing metadata.
+- [x] **Video timelines and audio moments:** not drawn. Their only source is `aggregation.json`, whose inner structure RD does not document (checked against the Media Detail page and both SDKs on 25 Sep 2026). The details say nothing about where in the clip Faike reacted, rather than invent it.
+- [x] **Capturing the aggregation structure.** `src/lib/rd/aggregation.ts` fetches `aggregation.json` safely: no key sent, redirects refused, 8 s timeout, 5 MB cap, JSON validated. It can describe the structure without any content (keys, types, array lengths and numeric ranges; strings reduced to "string" unless they are upper-case codes). With `REALITY_DEFENDER_LOG_AGGREGATION_SHAPE=1`, each finished check logs that description.
+
+**To unlock timelines and audio moments:**
+1. Set `REALITY_DEFENDER_LOG_AGGREGATION_SHAPE=1` in `.env.local` (or temporarily in Vercel) and run one check each of a video with speech, an audio file and a photo.
+2. Copy the `[rd] aggregation shape` log lines (they contain no values, names or links) and share them, or ask RD for the schema.
+3. The fields can then be mapped explicitly into `ScanResult.segments` and `regions`, with tests.
+4. Remove the variable afterwards.
+
+**Assumptions to confirm on a real check:**
+- **Sound of a video:** RD's docs show `audioRequestId` but do not say how to fetch it. Faike reads it through the same media-detail endpoint. If that is wrong, the sound card simply does not appear.
+- **Explanation in a frame:** it is not known whether RD's storage allows its page to be framed. If it does not, the frame stays empty and the new-tab link still works.
+- **`showAudioResult`:** RD's example shows the text "True"; Faike accepts that and a real boolean.
+
+**Verified.**
+- Lint, typecheck, 208 unit tests and the production build are clean. New tests cover:
+  - RD fixtures for image, audio, video with sound, text and a minimal result of every media type (missing optional fields)
+  - the explanation redirect (fresh link each time, 404 for other media, unsafe ids never forwarded)
+  - the sound lookup, including a failed sound read
+  - aggregation fetching (key never sent, size cap, redirect refused) and shape logging (no values; off by default)
+  - the detector table with and without scores
+  - file details
+  - expired heat map recovery in the live service
+- In Chromium against a local RD stand-in, 16/16 checks:
+  - an expired heat map (403) recovered after one refresh, with the result unchanged
+  - the picker listed only the flagging detectors, with no ensemble
+  - "Still running" shown for a running detector
+  - audio: language shown, no invented moments, no "Technical details" without a score
+  - video: the "Sound check" card
+  - text: the explanation loaded in the sandboxed frame through the redirect, and a script inside it did not run
+  - no RD ids on any page and no page errors
+- Server logs contained no key and no signed-URL query.
+
+**Decisions:**
+- Detector names shown by the owner's instruction; `RD_MODEL_NAMES_PUBLIC = false` shows "Model 1", "Heat map 1"… instead.
+- The sound card reads "Sound check — Checked separately, beside the overall result." so it never reads as a second overall verdict.
+
 ## Remaining work
 
 ### Stage 3c — Hardening the real flow
 - [ ] **Confirm RD's CORS allow-list** covers every Faike origin (production and custom domains, Vercel previews, `http://localhost:3000`), then a real check of each media type and a social link on the deployment.
 - [ ] Real MP4 and MOV samples; the bundled sample video is WebM, which RD does not accept (it is used only by the mock).
 - [ ] Heat map presentation: RD's greyscale mask is faint over bright photos. Recolouring it needs CORS on RD's image storage or a server relay; design decision.
-- [ ] Heat map URLs expire after 15 minutes: re-fetch the status when the details page opens after that.
 - [ ] Feedback: RD needs a label (`REAL`, `SYNTHETIC`, `MANIPULATED`, `UNKNOWN`) and a category (`FALSE_POSITIVE`, `FALSE_NEGATIVE`, `CONFIRMATION`, `OTHER`); mapping Faike's Yes / No / Not sure is a product decision. Answers are kept in the tab for now. RD's feedback response includes the account holder's name and email, which must never be passed on.
-- [ ] Decide how to present text explainability (RD's pre-signed HTML page), social-link previews (`storageLocation` / `thumbnail`), and the separate audio result of a video (`audioRequestId`).
+- [ ] Map `aggregation.json` once its structure is confirmed (video timelines, audio moments, image boxes); see part 3.
+- [ ] Confirm on a real check: the sound result of a video via `audioRequestId`, and whether RD's explanation page can be framed.
+- [ ] Decide on social-link previews (`storageLocation` / `thumbnail`); today no preview is shown.
 - [ ] Server-side scan record so direct links and retry work across devices and after a reload; retention period.
 - [ ] Replace remaining placeholder config (meter thresholds); decide when to remove the mock layer (it now serves only `/mock` and the demo checks).
 - [ ] Vercel environment variables for Preview as well as Production (confirm scope).
@@ -191,7 +250,7 @@ The mock now serves only the `/mock` review tools and the demo checks.
 - Favicon, app icon and social-share image.
 
 ### Reality Defender (HANDOFF §12)
-See the Stage 3a table: 5 answered, 4 partly answered, 3 open (thresholds, audio segments, showing model names). Questions to put to RD: adding Faike's origins to the upload CORS allow-list (confirmed blocking), the `aggregation.json` schema, the upload URL lifetime, the request id format, webhooks, whether model names may be shown, and whether Faike's RD plan covers video, text and links (RD's free tier covers images and audio only).
+See the Stage 3a table: 5 answered, 4 partly answered, 3 open (thresholds, audio segments, showing model names). Questions to put to RD: adding Faike's origins to the upload CORS allow-list (confirmed blocking), the `aggregation.json` schema, how to read the sound result of a video (`audioRequestId`), whether the explanation page may be framed, the upload URL lifetime, the request id format, webhooks, whether model names may be shown, and whether Faike's RD plan covers video, text and links (RD's free tier covers images and audio only).
 
 ### Product (HANDOFF §13)
 Share format · retention period · signed-out history · status-chip copy for authentic and artificial ("Looks good", "Be careful with this one" are proposals) · Plus model · follow-up on feedback "No".
@@ -206,7 +265,7 @@ Share format · retention period · signed-out history · status-chip copy for a
 | File selected | A picked or dropped file waits for "Check it" before anything is sent; the same state holds the file after Cancel | Derived, needs design review |
 | Plus gating vs "no pricing" | Gating logic kept in config; mock plan defaults to Plus so every input works; free plan (badges, gate) switchable on `/mock`; "See Plus" goes to a placeholder | Derived |
 | "Optional score" | Numeric ensemble score only in "Technical details", labelled as a model output score; the signal meter carries it on the result | Handoff §6.21 rule kept |
-| Advanced details | "Technical details" section (metadata, check information) added next to "Model results", both collapsed | Brief |
+| Advanced details | "Model results" and "Technical details" (overall output score), both collapsed; each left out when RD returned nothing for it | Brief |
 | Disclaimer | Handoff's evidence note used verbatim ("evidence, not proof") | Handoff copy |
 | Retrieving title | "Grabbing the post from the link…" until the media type is known (the comp assumes a video) | Derived |
 | Details title for authentic | "What Faike heard / saw / noticed" (nothing is flagged) | Derived |
@@ -221,7 +280,7 @@ Share format · retention period · signed-out history · status-chip copy for a
 | Default mock outcomes | Photo → authentic, voice and text → suspicious, video and video links → likely AI | Mock |
 | RD file name | Random `<uuid>.<ext>` instead of the person's file name | Privacy, derived |
 | Polling deadline | "This is taking longer than usual" + Try again (keeps waiting on the same request) | Derived |
-| Model names | Hidden ("Model 1"…) until RD permits showing them | CLAUDE.md rule, placeholder |
+| Model names | Shown as RD returns them, by the owner's instruction (25 Sep 2026); RD permission still to confirm; one switch hides them | Owner decision |
 | Heat map legend | Strength legend only with region outlines; RD's heat map keeps its own caption | Derived from live data |
 | One real check at a time | A new check stops and removes a real check still in progress | Brief |
 | Disabled kinds | Left out of chips, examples, paste prompt and home intro; explained with a "… checks aren't available right now" card if dropped or pasted anyway | Derived; the design has no disabled state |
@@ -231,4 +290,9 @@ Share format · retention period · signed-out history · status-chip copy for a
 | Pasted text | Sent to RD as a `.txt` file through the same upload path | RD documents no text-body endpoint |
 | Missing RD status | Treated as still processing; the client's polling deadline will bound it | Derived |
 | Heat maps | Only with a suspicious or artificial verdict, so a model's flags never contradict the ensemble | CLAUDE.md rule |
+| Several heat maps | "Heat map from" picker beside the overlay control, strongest first | Derived, needs design review |
+| Expired heat map | Re-read the detail by request id, at most twice, then "The heat map couldn't be loaded right now. The result is unchanged." | Derived |
+| Sound of a video | "Sound check" card with its own label; the overall verdict is not repeated | Derived, needs design review |
+| Text explanation | "Detailed explanation" card: sandboxed frame plus "Open the explanation in a new tab" | Derived, needs design review |
+| Video timeline, audio moments | Not drawn until RD's `aggregation.json` structure is confirmed | CLAUDE.md rule (no guessed fields) |
 | Earlier Stage 1 decisions | Logo size, tablet header, step strip on tablet, card width, hover colours, line-height, skip link | Unchanged |

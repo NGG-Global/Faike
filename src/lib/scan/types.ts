@@ -60,8 +60,10 @@ export interface ModelResult {
   /** [Faike] What the model checks, only if RD describes it. */
   checks?: string;
   verdict?: Verdict;
-  /** 0..1 model output score. Not a probability. */
+  /** 0..1 model output score. Not a probability. RD may stop returning these. */
   score?: number;
+  /** [Faike] Still running when the overall result was final. */
+  pending?: true;
 }
 
 export interface ScanResult {
@@ -101,7 +103,14 @@ export interface ScanResult {
   /** [Faike] Scene-cut times in seconds (video), only if RD provides them. */
   sceneCuts?: number[];
   regions?: Region[];
-  heatmapUrl?: string;
+  /**
+   * Image heat maps, one per detector that flagged the image, strongest
+   * first. `label` is RD's model name (shown only if RD permits). The URLs
+   * are pre-signed and expire; scanService.refresh() fetches fresh ones.
+   */
+  heatmaps?: { label: string; url: string }[];
+  /** [Faike] Text: RD returned an explanation page (served via /api/scans/{requestId}/explainability). */
+  hasExplainability?: true;
   textSpans?: TextSpan[];
   partial?: {
     picture?: Verdict | "pending";

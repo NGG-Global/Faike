@@ -25,6 +25,12 @@ export interface ScanService {
   retry(id: string): void;
   /** False when a retry is impossible, e.g. the file of a real check is gone after a reload. */
   canRetry(id: string): boolean;
+  /**
+   * Re-reads a finished check to replace expired visual links (heat maps).
+   * Never changes the verdict or fails the check; resolves false when
+   * nothing could be refreshed.
+   */
+  refresh(id: string): Promise<boolean>;
   /** Sends the feedback answer with the check id only (HANDOFF §9.5). */
   sendFeedback(id: string, answer: FeedbackAnswer): Promise<void>;
 }

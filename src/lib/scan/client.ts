@@ -24,5 +24,6 @@ export const scanService: ScanService = {
   cancel: (id) => owner(id).cancel(id),
   retry: (id) => owner(id).retry(id),
   canRetry: (id) => owner(id).canRetry(id),
+  refresh: (id) => owner(id).refresh(id),
   sendFeedback: (id, answer) => owner(id).sendFeedback(id, answer),
 };

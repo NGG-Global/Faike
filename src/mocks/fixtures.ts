@@ -47,7 +47,7 @@ const image: Record<Verdict, FixtureTemplate> = {
   suspicious: {
     ensembleScore: 0.57,
     regions: IMAGE_REGIONS,
-    heatmapUrl: SAMPLE_HEATMAP_URL,
+    heatmaps: [{ label: "mock-img-edits", url: SAMPLE_HEATMAP_URL }],
     models: [
       model("mock-img-generation", "Whole-image generation", "Signs that the entire image was generated", "authentic", 0.31),
       model("mock-img-edits", "Local edits", "Signs that parts of the image were altered", "suspicious", 0.74),
@@ -57,7 +57,7 @@ const image: Record<Verdict, FixtureTemplate> = {
   artificial: {
     ensembleScore: 0.93,
     regions: IMAGE_REGIONS,
-    heatmapUrl: SAMPLE_HEATMAP_URL,
+    heatmaps: [{ label: "mock-img-edits", url: SAMPLE_HEATMAP_URL }],
     models: [
       model("mock-img-generation", "Whole-image generation", "Signs that the entire image was generated", "artificial", 0.95),
       model("mock-img-edits", "Local edits", "Signs that parts of the image were altered", "artificial", 0.88),

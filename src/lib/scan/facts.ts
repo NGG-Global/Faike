@@ -1,5 +1,5 @@
 import { MEDIA } from "@/config/media";
-import { countWords, formatBytes, formatDuration, formatDurationWords, formatRelative, languageName, plural } from "@/lib/format";
+import { countWords, formatBytes, formatDateTime, formatDuration, formatDurationWords, formatRelative, languageName, plural } from "@/lib/format";
 import { displayUrl } from "./input";
 import type { InputSummary } from "./job";
 import type { ScanResult } from "./types";
@@ -102,4 +102,22 @@ export function inputName(input: InputSummary): string {
     return input.url ? displayUrl(input.url) : "Linked post";
   }
   return input.fileName ?? "Your file";
+}
+
+/**
+ * "File details" rows: only what a person finds useful (file, media type,
+ * detected language, source platform, check time). No sizes, ids, storage
+ * paths or implementation details.
+ */
+export function fileDetailRows(result: ScanResult, input?: InputSummary): [string, string][] {
+  const file = result.source.kind === "file" ? subjectName(result, input) : result.source.kind === "paste" ? "Pasted text" : "From a link";
+  const rows: [string, string][] = [
+    ["File", file],
+    ["Type", MEDIA[result.mediaType].typeLabel],
+  ];
+  if (result.language) rows.push(["Language", `${languageName(result.language)} (detected)`]);
+  if (result.source.kind === "link" && result.source.platform) rows.push(["Source", result.source.platform]);
+  const checked = formatDateTime(result.checkedAt);
+  if (checked) rows.push(["Checked", checked]);
+  return rows;
 }

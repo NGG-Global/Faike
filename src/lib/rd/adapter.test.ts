@@ -89,11 +89,10 @@ describe("toScanStatus: live-shaped image result", () => {
     expect(analysis).toMatchObject({ mediaType: "image", verdict: "artificial", ensembleScore: 0.92 });
     expect(analysis.models).toEqual([
       { name: "mock-context-img", verdict: "authentic", score: 0.45 },
-      { name: "mock-img-ensemble", verdict: "artificial", score: 0.92 },
-      { name: "mock-a-img" },
+      { name: "mock-a-img", pending: true },
       { name: "mock-full-a-img", verdict: "artificial", score: 0.99 },
       { name: "mock-full-b-img", verdict: "artificial", score: 0.8 },
-      { name: "mock-b-img" },
+      { name: "mock-b-img", pending: true },
     ]);
     expect(analysis.heatmaps?.map((heatmap) => heatmap.model)).toEqual(["mock-full-a-img", "mock-full-b-img"]);
   });
@@ -125,17 +124,18 @@ describe("toScanStatus: analysis details", () => {
     expect(withLanguages(["constructor", "toString"])).toBeUndefined();
   });
 
-  it("lists models by the names RD returns, leaving out those that do not apply", () => {
+  it("lists detectors by the names RD returns, leaving out those that do not apply and the ensemble itself", () => {
     expect(analysisOf(imageDetail()).models).toEqual([
       { name: "mock-img-a", verdict: "artificial", score: 0.91 },
       { name: "mock-img-b", verdict: "authentic", score: 0.2 },
-      { name: "mock-img-ensemble", verdict: "artificial", score: 0.87 },
     ]);
   });
 
-  it("gives a model that is still running no verdict", () => {
+  it("marks a detector that is still running, with no verdict", () => {
     const models = [{ name: "mock-aud-z", status: "ANALYZING", finalScore: null }];
-    expect(analysisOf({ requestId: REQUEST_ID, resultsSummary: { status: "SUSPICIOUS" }, models }).models).toEqual([{ name: "mock-aud-z" }]);
+    expect(analysisOf({ requestId: REQUEST_ID, resultsSummary: { status: "SUSPICIOUS" }, models }).models).toEqual([
+      { name: "mock-aud-z", pending: true },
+    ]);
   });
 
   it("keeps heat maps only from non-ensemble models that flagged the image", () => {

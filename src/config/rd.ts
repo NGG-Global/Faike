@@ -26,9 +26,10 @@ export const RD_LANGUAGE_CODES: Readonly<Record<string, string>> = {
 export const RD_ENSEMBLE_MODEL_PATTERN = /ensemble/i;
 
 /**
- * PLACEHOLDER (HANDOFF §12.12): RD has not confirmed that its model names
- * may be shown to end users, and says the names change over time. Until it
- * does, "Model results" labels rows by position ("Model 1") and never shows
- * the name RD returned.
+ * Whether "Model results" and the heat-map picker show the detector names
+ * RD returns (always read from the response, never hard-coded). On by the
+ * product owner's instruction of 25 Sep 2026. RD has not confirmed that
+ * end users may see them (HANDOFF §12.12); set false to show "Model 1",
+ * "Model 2"… instead.
  */
-export const RD_MODEL_NAMES_PUBLIC = false;
+export const RD_MODEL_NAMES_PUBLIC = true;

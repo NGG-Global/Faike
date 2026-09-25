@@ -28,6 +28,7 @@ Copy `.env.example` to `.env.local` and set the Reality Defender API key. Both v
 |---|---|
 | `REALITY_DEFENDER_API_KEY` | RD API key (server only) |
 | `REALITY_DEFENDER_API_BASE_URL` | RD API base URL, `https://api.prd.realitydefender.xyz` |
+| `REALITY_DEFENDER_LOG_AGGREGATION_SHAPE` | Optional development aid. `1` logs the structure (keys, types, array lengths, numeric ranges; no values) of RD's `aggregation.json` for each finished check. Leave unset in production. |
 
 ## Mock data and configuration
 

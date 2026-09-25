@@ -298,6 +298,11 @@ export const mockScanService: ScanService = {
     return true;
   },
 
+  async refresh() {
+    // MOCK visuals are bundled files; they never expire.
+    return false;
+  },
+
   async sendFeedback(id, answer) {
     // MOCK: stored locally only. The real client sends { id, answer } and nothing else.
     scanStore.updateJob(id, (job) => ({ ...job, feedback: answer }));
