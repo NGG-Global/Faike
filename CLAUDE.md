@@ -50,6 +50,7 @@ Run lint, typecheck, tests and build before every commit. Add unit tests for log
 - Screens talk to checks only through `scanService` (`src/lib/scan/client.ts`, the `ScanService` contract) and the scan store (`useScanJob`, `useEnsureScan`). They never call RD or import the mock service directly.
 - Browser-only state is read with `useSyncExternalStore`; object URLs and other side effects are created in event handlers. The enabled React Compiler lint rules forbid synchronous setState in effects and reading refs during render.
 - The user's file is never re-hosted, shared or logged. Social-link media is never redistributed publicly.
+- The temporary upload rewrite (`src/config/upload.ts`, `next.config.ts`) forwards only RD's upload endpoint with a plain id. Do not widen it or add other external rewrites; remove it once RD allows Faike's origins.
 
 ## Reality Defender rules
 

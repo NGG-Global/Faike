@@ -20,7 +20,7 @@ export interface PresignRequest {
   sizeBytes: number;
 }
 
-/** The browser PUTs the file body, and nothing else, to `uploadUrl`. */
+/** The browser PUTs the file body, and nothing else, to `uploadUrl` (absolute, or a same-origin path while the upload proxy is on). */
 export interface PresignResponse {
   requestId: string;
   uploadUrl: string;
